@@ -107,17 +107,17 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // POST /clients - Create new client
-router.post('/', asyncHandler(async (req: Request, res: Response) => {
+router.post('/', async (req, res) => {
+  console.log("req.body", req.body);
   const { 
     name, 
-    phoneNumber, 
-    email, 
-    type = 'Client',
+    phone,
+     type = 'Client',
     lastMessage = ''
   } = req.body;
 
   // Validation
-  if (!name || !phoneNumber) {
+  if (!name || !phone) {
     return res.status(400).json({ 
       error: 'Name and phone number are required' 
     });
@@ -125,7 +125,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
   // Check if phone number already exists
   const existingClient = await prisma.client.findUnique({
-    where: { phoneNumber }
+    where: { phoneNumber : phone }
   });
 
   if (existingClient) {
@@ -137,15 +137,14 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   const client = await prisma.client.create({
     data: {
       name,
-      phoneNumber,
-      email,
-      type,
+      phoneNumber : phone,
+       type,
       lastMessage
     }
   });
 
   res.status(201).json(client);
-}));
+})
 
 // PUT /clients/:id - Update client
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {

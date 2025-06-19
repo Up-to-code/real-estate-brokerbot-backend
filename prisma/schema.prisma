@@ -81,34 +81,47 @@ model QAPair {
   @@index([isActive])
 }
 
-// Define the Campaign model based on your initialCampaigns data structure
+// Define the Campaign model
 model Campaign {
   id         String    @id @default(cuid())
   name       String
-  type       String // "Template" or "Custom"
-  status     String // "Active", "Scheduled", "Completed", "Draft"
+  type       String    // "Template" or "Custom" 
+  status     String    // "Active", "Scheduled", "Completed", "Draft"
   audience   String
   sentCount  Int       @default(0)
-  message    String?
+  message    String?   // For custom campaigns or final processed message
   clients    Client[]  @relation("CampaignToClient")
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   lastSentAt DateTime?
+  
+  // Optional template relationship - only if campaign uses a template
+  template   Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId String?
+  
+  @@index([status])
+  @@index([type])
 }
 
-// Define the Template model for WhatsApp templates
+// Define the Template model for reusable WhatsApp templates
 model Template {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  content   String
-  category  String // "greeting", "reminder", "update", "payment", "marketing", "custom"
-  variables String[] // Array of variable names used in the template
-  language  String   @default("en") // Language code: "en", "ar", etc.
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Composite index for name and language to ensure uniqueness per language
+  content   String     // Template content with placeholders like {{name}}, {{amount}}
+  category  String     // "greeting", "reminder", "update", "payment", "marketing", "custom"
+  variables String[]   // Array of variable names used in the template: ["name", "amount", "date"]
+  language  String     @default("en") // Language code: "en", "ar", etc.
+  isActive  Boolean    @default(true) // To enable/disable templates
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  // Campaigns that use this template
+  campaigns Campaign[]
+  
+  // Ensure template names are unique per language
   @@unique([name, language])
+  @@index([category])
+  @@index([isActive])
 }
 
 // Define the Property model for real estate properties

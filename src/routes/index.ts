@@ -4,6 +4,8 @@ import propertiesRouter from "./properties/index";
 import webhookRouter from "./webhook/whatsapp/index";
 import clientsRouter from "./Clients/index";
 import qaRouter from "./QA/qa";
+import templatesRouter from "./Templates/index";
+import campaignsRouter from "./campaigns/index";
 const router = Router();
 
 //  main route
@@ -16,5 +18,7 @@ router.use("/webhook/whatsapp", webhookRouter);
 router.use("/properties", propertiesRouter);
 router.use("/clients", clientsRouter);
 router.use("/qa", qaRouter);
+router.use("/templates", templatesRouter);
+router.use("/campaigns", campaignsRouter);
 
 export default router;
