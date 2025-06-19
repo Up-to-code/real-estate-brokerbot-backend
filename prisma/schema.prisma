@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id          String     @id @default(cuid())
+  name        String
+  phoneNumber String     @unique
+  email       String?
+  lastActive  DateTime   @default(now())
+  lastMessage String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  messages    Message[]
+  type        String     @default("Client")
+  campaigns   Campaign[] @relation("CampaignToClient")
+}
+
+model DailyMessageStat {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  count     Int
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  clientId  String
+  isBot     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id])
+
+  // WhatsApp essentials
+  whatsappMessageId String?       @unique
+  status            MessageStatus? @default(RECEIVED)
+  sentAt            DateTime?
+
+  @@index([whatsappMessageId])
+  @@index([status])
+  @@index([isBot])
+}
+
+enum MessageStatus {
+  RECEIVED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model QAPair {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  category  String   @default("general")
+  language  String   @default("en") // "en", "ar", or "both"
+  isActive  Boolean  @default(true)
+  tags      String[] // Array of tags for better categorization
+  priority  Int      @default(0) // Higher priority questions appear first
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([language])
+  @@index([isActive])
+}
+
+// Define the Campaign model based on your initialCampaigns data structure
+model Campaign {
+  id         String    @id @default(cuid())
+  name       String
+  type       String // "Template" or "Custom"
+  status     String // "Active", "Scheduled", "Completed", "Draft"
+  audience   String
+  sentCount  Int       @default(0)
+  message    String?
+  clients    Client[]  @relation("CampaignToClient")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSentAt DateTime?
+}
+
+// Define the Template model for WhatsApp templates
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  content   String
+  category  String // "greeting", "reminder", "update", "payment", "marketing", "custom"
+  variables String[] // Array of variable names used in the template
+  language  String   @default("en") // Language code: "en", "ar", etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Composite index for name and language to ensure uniqueness per language
+  @@unique([name, language])
+}
+
+// Define the Property model for real estate properties
+model Property {
+  id          String         @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  currency    String         @default("USD")
+  type        PropertyType
+  status      PropertyStatus @default(AVAILABLE)
+  bedrooms    Int?
+  bathrooms   Int?
+  area        Float? // Area in square meters
+  location    String
+  address     String
+  city        String
+  country     String         @default("UAE")
+  latitude    Float?
+  longitude   Float?
+  images      String[] // Array of image URLs from UploadThing
+  features    String[] // Array of property features
+  amenities   String[] // Array of amenities
+  yearBuilt   Int?
+  parking     Int? // Number of parking spaces
+  furnished   Boolean        @default(false)
+  petFriendly Boolean        @default(false)
+  utilities   String? // Utilities included
+  contactInfo String? // Contact information
+  agentId     String? // Reference to agent/user
+  isActive    Boolean        @default(true)
+  isFeatured  Boolean        @default(false)
+  viewCount   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([city])
+  @@index([price])
+  @@index([isActive])
+  @@index([isFeatured])
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  TOWNHOUSE
+  PENTHOUSE
+  STUDIO
+  OFFICE
+  SHOP
+  WAREHOUSE
+  LAND
+  BUILDING
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+  RESERVED
+  OFF_MARKET
+}
