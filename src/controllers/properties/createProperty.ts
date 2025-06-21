@@ -1,21 +1,46 @@
 import { prisma } from "../../lib/prisma";
+import { PropertyType, PropertyStatus } from "@prisma/client";
 
+// Helper function to map Arabic status to PropertyStatus enum
+const mapStatusToEnum = (status: string): PropertyStatus => {
+  const statusMap: Record<string, PropertyStatus> = {
+    'مؤجر': PropertyStatus.RENTED,
+    'متاح': PropertyStatus.AVAILABLE,
+    'محجوز': PropertyStatus.RESERVED,
+    'مباع': PropertyStatus.SOLD,
+    'غير متاح': PropertyStatus.OFF_MARKET,
+    // English mappings
+    'rented': PropertyStatus.RENTED,
+    'available': PropertyStatus.AVAILABLE,
+    'reserved': PropertyStatus.RESERVED,
+    'sold': PropertyStatus.SOLD,
+    'off market': PropertyStatus.OFF_MARKET,
+  };
 
- 
+  const normalizedStatus = status?.toLowerCase();
+  return statusMap[status] || statusMap[normalizedStatus] || PropertyStatus.AVAILABLE;
+};
+
 // Create property function
 const createProperty = async (data: any) => {
+  // Convert type to uppercase to match enum
+  const propertyType = data.type?.toUpperCase() as PropertyType;
+  
+  // Map status to enum value
+  const propertyStatus = mapStatusToEnum(data.status);
+
   const property = await prisma.property.create({
     data: {
       title: data.title,
       description: data.description,
       price: parseFloat(data.price),
       currency: data.currency || "SA",
-      type: data.type,
-      status: data.status || "For Sale",
+      type: propertyType,
+      status: propertyStatus,
       bedrooms: data.bedrooms ? parseInt(data.bedrooms) : null,
       bathrooms: data.bathrooms ? parseInt(data.bathrooms) : null,
       area: data.area ? parseFloat(data.area) : null,
-      location: data.location,
+      location: data.location || data.address,
       address: data.address,
       city: data.city,
       country: data.country || "Saudi Arabia",
