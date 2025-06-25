@@ -6,14 +6,26 @@ export const getAllCampaigns = async (req: Request, res: Response) => {
   try {
     const campaigns = await prisma.campaign.findMany({
       include: {
-        clients: true,
         template: true,
+        _count: {
+          select: {
+            clients: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
-    res.json({ success: true, data: campaigns });
+
+    // Transform the response to include clientCount
+    const transformedCampaigns = campaigns.map(campaign => ({
+      ...campaign,
+      clientCount: campaign._count.clients,
+      _count: undefined, // Remove the _count field
+    }));
+
+    res.json({ success: true, data: transformedCampaigns });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Failed to get campaigns" });
@@ -26,16 +38,28 @@ export const getCampaignById = async (req: Request, res: Response) => {
     const campaign = await prisma.campaign.findUnique({
       where: { id },
       include: {
-        clients: true,
         template: true,
+        _count: {
+          select: {
+            clients: true,
+          },
+        },
       },
     });
+
     if (!campaign)
       return res
         .status(404)
         .json({ success: false, error: "Campaign not found" });
 
-    res.json({ success: true, data: campaign });
+    // Transform the response to include clientCount
+    const transformedCampaign = {
+      ...campaign,
+      clientCount: campaign._count.clients,
+      _count: undefined, // Remove the _count field
+    };
+
+    res.json({ success: true, data: transformedCampaign });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Failed to get campaign" });
