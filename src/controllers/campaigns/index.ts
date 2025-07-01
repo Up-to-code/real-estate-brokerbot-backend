@@ -19,7 +19,7 @@ export const getAllCampaigns = async (req: Request, res: Response) => {
     });
 
     // Transform the response to include clientCount
-    const transformedCampaigns = campaigns.map(campaign => ({
+    const transformedCampaigns = campaigns.map((campaign) => ({
       ...campaign,
       clientCount: campaign._count.clients,
       _count: undefined, // Remove the _count field
@@ -76,6 +76,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     templateId,
     clientIds = [],
   } = req.body;
+
   if (!name || !type || !status || !audience) {
     return res
       .status(400)
@@ -83,15 +84,16 @@ export const createCampaign = async (req: Request, res: Response) => {
   }
 
   try {
-    let selectedClients;
+    let selectedClients = [];
 
-    // Handle different audience types
+    // Handle audience types
     switch (audience) {
       case "all":
         selectedClients = await prisma.client.findMany({
           select: { id: true },
         });
         break;
+
       case "active":
         selectedClients = await prisma.client.findMany({
           where: {
@@ -102,6 +104,7 @@ export const createCampaign = async (req: Request, res: Response) => {
           select: { id: true },
         });
         break;
+
       case "inactive":
         selectedClients = await prisma.client.findMany({
           where: {
@@ -111,6 +114,18 @@ export const createCampaign = async (req: Request, res: Response) => {
           },
           select: { id: true },
         });
+        break;
+
+      case "custom":
+        if (!Array.isArray(clientIds) || clientIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: "clientIds must be a non-empty array for custom audience",
+          });
+        }
+
+        // Validate clients exist (optional but recommended)
+        selectedClients = clientIds.map((id: string) => ({ id }));
         break;
 
       default:
@@ -139,10 +154,10 @@ export const createCampaign = async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json({ success: true, data: campaign });
+    return res.status(201).json({ success: true, data: campaign });
   } catch (err) {
     console.error(err);
-    res
+    return res
       .status(500)
       .json({ success: false, error: "Failed to create campaign" });
   }
@@ -193,7 +208,8 @@ export const updateCampaign = async (req: Request, res: Response) => {
       },
     });
 
-    if (status === "Active") {
+     console.log("status", status);
+    if (status === "active") {
       await sendWhatsAppTemplateCampaign(id);
     }
 
