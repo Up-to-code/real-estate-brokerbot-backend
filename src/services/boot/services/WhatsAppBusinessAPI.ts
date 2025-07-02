@@ -5,8 +5,8 @@ import { WhatsAppBusinessAPI, WhatsAppMessagePayload, WhatsAppMessageComponent, 
 
 const prisma = new PrismaClient();
 
-const WA_PHONE_NUMBER_ID = process.env.WA_PHONE_NUMBER_ID!;
-const WA_ACCESS_TOKEN = process.env.WA_ACCESS_TOKEN!;
+const WA_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
+const WA_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!;
 const MAX_MESSAGES_PER_DAY = parseInt(process.env.MAX_MESSAGES_PER_DAY || '1000');
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '10');
 const BATCH_DELAY_MS = parseInt(process.env.BATCH_DELAY_MS || '1000');
@@ -283,6 +283,10 @@ async function sendMessagesInBatches(clients: any[], campaign: any): Promise<Mes
 }
 
 async function sendSingleMessage(client: any, campaign: any): Promise<MessageResult> {
+ console.log("sendSingleMessage");
+ console.log(campaign.template.language || "ar");
+ console.log(campaign.template.name , "template name");
+ 
   try {
     // Build template parameters
     const parameters = (campaign.template.variables || []).map((variable: string) => {
