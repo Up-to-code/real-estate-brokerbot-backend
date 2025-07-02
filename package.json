@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build": "prisma generate && bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "type-check": "tsc --noEmit",
     "db:generate": "prisma generate",
@@ -52,6 +52,15 @@
     },
     "testMatch": [
       "**/*.test.ts"
+    ]
+  },
+  "vercel": {
+    "version": 2,
+    "builds": [
+      { "src": "dist/index.js", "use": "@vercel/node" }
+    ],
+    "routes": [
+      { "src": "/(.*)", "dest": "dist/index.js" }
     ]
   }
 }
