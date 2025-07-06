@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { config } from "./config/config";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -6,6 +7,9 @@ import { setupMiddleware } from "./middleware/index.ts";
 import router from "./routes";
 
 const app = express();
+
+// Use CORS at the very top
+app.use(cors(config.cors));
 
 // Setup middleware
 setupMiddleware(app);

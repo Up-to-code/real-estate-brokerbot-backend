@@ -11,7 +11,7 @@ export declare const config: {
         readonly expiresIn: string;
     };
     readonly cors: {
-        readonly origin: string[];
+        readonly origin: "*";
         readonly credentials: true;
     };
     readonly rateLimit: {

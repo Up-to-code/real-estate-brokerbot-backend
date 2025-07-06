@@ -14,7 +14,7 @@ exports.config = {
         expiresIn: process.env.JWT_EXPIRES_IN || '24h',
     },
     cors: {
-        origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+        origin: '*',
         credentials: true,
     },
     rateLimit: {
@@ -22,3 +22,4 @@ exports.config = {
         max: 100,
     },
 };
+console.log('CORS allowed origins:', process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000']);

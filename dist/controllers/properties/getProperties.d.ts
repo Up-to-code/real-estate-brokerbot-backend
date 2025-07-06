@@ -1,41 +1,9 @@
 declare const getProperties: (filters: any, page: number, limit: number) => Promise<{
-    properties: {
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        type: import(".prisma/client").$Enums.PropertyType;
-        status: import(".prisma/client").$Enums.PropertyStatus;
-        isActive: boolean;
-        title: string;
-        description: string;
-        price: number;
-        currency: string;
-        bedrooms: number | null;
-        bathrooms: number | null;
-        area: number | null;
-        location: string;
-        address: string;
-        city: string;
-        country: string;
-        latitude: number | null;
-        longitude: number | null;
-        images: string[];
-        features: string[];
-        amenities: string[];
-        yearBuilt: number | null;
-        parking: number | null;
-        furnished: boolean;
-        petFriendly: boolean;
-        utilities: string | null;
-        contactInfo: string | null;
-        agentId: string | null;
-        isFeatured: boolean;
-        viewCount: number;
-    }[];
+    properties: any;
     pagination: {
         page: number;
         limit: number;
-        total: number;
+        total: any;
         pages: number;
     };
 }>;
