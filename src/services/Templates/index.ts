@@ -1,6 +1,8 @@
 import { prisma } from '../../lib/prisma';
-import { Template } from '@prisma/client';
 import { z } from 'zod';
+
+// Infer Template type from Prisma client
+export type Template = NonNullable<Awaited<ReturnType<typeof prisma.template.findFirst>>>;
 
 // Zod schema for input validation
 const templateSchema = z.object({
