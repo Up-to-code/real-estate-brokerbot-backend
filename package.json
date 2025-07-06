@@ -33,7 +33,8 @@
     "install": "^0.13.0",
     "npm": "^11.4.2",
     "openai": "^5.5.1",
-    "uploadthing": "^7.7.2"
+    "uploadthing": "^7.7.2",
+    "zod": "^3.25.74"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -57,10 +58,16 @@
   "vercel": {
     "version": 2,
     "builds": [
-      { "src": "dist/index.js", "use": "@vercel/node" }
+      {
+        "src": "dist/index.js",
+        "use": "@vercel/node"
+      }
     ],
     "routes": [
-      { "src": "/(.*)", "dest": "dist/index.js" }
+      {
+        "src": "/(.*)",
+        "dest": "dist/index.js"
+      }
     ]
   }
 }
