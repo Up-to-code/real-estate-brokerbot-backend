@@ -17,7 +17,7 @@ export const config = {
   
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+    origin: '*',
     credentials: true,
   },
   
@@ -27,3 +27,5 @@ export const config = {
     max: 100, // limit each IP to 100 requests per windowMs
   },
 } as const;
+
+console.log('CORS allowed origins:', process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000']);
