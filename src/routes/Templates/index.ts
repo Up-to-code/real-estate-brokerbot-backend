@@ -5,7 +5,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
-} from "../../services/Templates/index.ts";
+} from "../../services/Templates/index";
 
 const router = Router();
 
