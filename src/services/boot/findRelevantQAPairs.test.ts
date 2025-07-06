@@ -56,8 +56,8 @@ describe('findRelevantQAPairs', () => {
       }
     ];
 
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue(mockQAPairs);
-    (prisma.qAPair.count as jest.Mock).mockResolvedValue(mockQAPairs.length);
+    (prisma.qAPair.findMany as any).mockResolvedValue(mockQAPairs);
+    (prisma.qAPair.count as any).mockResolvedValue(mockQAPairs.length);
   });
 
   it('should find exact matches with high similarity', async () => {
@@ -80,7 +80,7 @@ describe('findRelevantQAPairs', () => {
   });
 
   it('should return empty results for irrelevant queries', async () => {
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.qAPair.findMany as any).mockResolvedValue([]);
     const query = 'completely unrelated query xyz123';
     const { results, metrics } = await findRelevantQAPairs(query);
 
@@ -115,7 +115,7 @@ describe('findRelevantQAPairs', () => {
       }
     ];
 
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue(mockQAs);
+    (prisma.qAPair.findMany as any).mockResolvedValue(mockQAs);
     
     const query = 'password reset';
     const customConfig: SearchConfig = {
@@ -145,7 +145,7 @@ describe('findRelevantQAPairs', () => {
       createdAt: new Date()
     };
 
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue([mockStructuredQA]);
+    (prisma.qAPair.findMany as any).mockResolvedValue([mockStructuredQA]);
     
     const query = 'payment options';
     const { results } = await findRelevantQAPairs(query);
@@ -193,7 +193,7 @@ describe('findRelevantQAPairs', () => {
       }
     ];
 
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue(mockPasswordQAs);
+    (prisma.qAPair.findMany as any).mockResolvedValue(mockPasswordQAs);
     
     const query = 'password help';
     const { results, metrics } = await findRelevantQAPairs(query);
@@ -206,7 +206,7 @@ describe('findRelevantQAPairs', () => {
   });
 
   it('should handle errors gracefully', async () => {
-    (prisma.qAPair.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+    (prisma.qAPair.findMany as any).mockRejectedValue(new Error('Database error'));
     
     const query = 'test query';
     const { results, metrics } = await findRelevantQAPairs(query);
@@ -229,11 +229,11 @@ describe('findRelevantQAPairs', () => {
       createdAt: new Date()
     };
 
-    (prisma.qAPair.findMany as jest.Mock).mockResolvedValue([mockQA]);
+    (prisma.qAPair.findMany as any).mockResolvedValue([mockQA]);
     
     const query = 'cached query test';
     await findRelevantQAPairs(query); // First call should cache
-    (prisma.qAPair.findMany as jest.Mock).mockClear(); // Clear mock calls
+    (prisma.qAPair.findMany as any).mockClear(); // Clear mock calls
     const { results, metrics } = await findRelevantQAPairs(query); // Second call should use cache
 
     expect(results.length).toBeGreaterThan(0);

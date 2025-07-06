@@ -60,9 +60,10 @@ export const getCampaignById = async (req: Request, res: Response) => {
     };
 
     res.json({ success: true, data: transformedCampaign });
+    return;
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: "Failed to get campaign" });
+    return res.status(500).json({ success: false, error: "Failed to get campaign" });
   }
 };
 
@@ -218,11 +219,10 @@ export const updateCampaign = async (req: Request, res: Response) => {
       data: updatedCampaign,
       message: "Campaign updated successfully",
     });
+    return;
   } catch (error) {
     console.error("Error updating campaign:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to update campaign" });
+    return res.status(500).json({ success: false, error: "Failed to update campaign" });
   }
 };
 

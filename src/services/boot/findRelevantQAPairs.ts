@@ -848,17 +848,8 @@ async function findRelevantQAPairsSimple(
   message: string,
   limit: number = 5
 ): Promise<QAPairWithSimilarity[]> {
-  const { results } = await findRelevantQAPairs(message, { limit });
+  const { results } = await findRelevantQAPairs(message, { ...DEFAULT_CONFIG, limit });
   return results;
 }
-
-export { 
-  findRelevantQAPairsSimple, 
-  type QAPairWithSimilarity, 
-  type SearchConfig, 
-  type SearchMetrics,
-  type QueryAnalysis,
-  type RelevanceFactors
-};
 
 export default findRelevantQAPairs;

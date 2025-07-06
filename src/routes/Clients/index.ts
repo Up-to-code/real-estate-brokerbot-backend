@@ -74,6 +74,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       pages: Math.ceil(total / parseInt(limit))
     }
   });
+  return;
 }));
 
 // GET /clients/:id - Get single client by ID
@@ -104,6 +105,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   }
 
   res.json(client);
+  return;
 }));
 
 // POST /clients - Create new client
@@ -144,6 +146,7 @@ router.post('/', async (req, res) => {
   });
 
   res.status(201).json(client);
+  return;
 })
 
 // PUT /clients/:id - Update client
@@ -192,6 +195,7 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.json(updatedClient);
+  return;
 }));
 
 // PATCH /clients/:id - Partial update client
@@ -230,6 +234,7 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.json(updatedClient);
+  return;
 }));
 
 // DELETE /clients/:id - Delete client
@@ -256,6 +261,7 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.status(204).send();
+  return;
 }));
 
 // POST /clients/bulk - Create multiple clients
@@ -312,6 +318,7 @@ router.post('/bulk', asyncHandler(async (req: Request, res: Response) => {
   }
 
   res.json(results);
+  return;
 }));
 
 // GET /clients/:id/messages - Get all messages for a client
@@ -350,6 +357,7 @@ router.get('/:id/messages', asyncHandler(async (req: Request, res: Response) => 
       pages: Math.ceil(total / parseInt(limit))
     }
   });
+  return;
 }));
 
 // POST /clients/:id/messages - Send message to client
@@ -391,6 +399,7 @@ router.post('/:id/messages', asyncHandler(async (req: Request, res: Response) =>
   });
 
   res.status(201).json(message);
+  return;
 }));
 
 // GET /clients/search - Search clients
@@ -463,7 +472,7 @@ router.use((err: any, req: Request, res: Response, next: NextFunction) => {
     return res.status(404).json({ error: 'Record not found' });
   }
 
-  res.status(500).json({ 
+  return res.status(500).json({ 
     error: 'Internal server error',
     message: err.message
   });
