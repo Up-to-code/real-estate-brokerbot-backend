@@ -46,4 +46,5 @@ export async function deleteTemplate(id: string): Promise<Template> {
     where: { id },
     data: { isActive: false },
   });
-} 
+}
+
