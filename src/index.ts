@@ -2,8 +2,8 @@ import express from "express";
 import { config } from "./config/config";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { setupMiddleware } from "./middleware/index.ts.ts";
-import router from "./routes/index.ts";
+import { setupMiddleware } from "./middleware/index.ts";
+import router from "./routes";
 
 const app = express();
 

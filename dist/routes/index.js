@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const index_1 = __importDefault(require("./main/index"));
+const index_2 = __importDefault(require("./properties/index"));
+const index_3 = __importDefault(require("./webhook/whatsapp/index"));
+const index_4 = __importDefault(require("./Clients/index"));
+const qa_1 = __importDefault(require("./QA/qa"));
+const index_5 = __importDefault(require("./Templates/index"));
+const index_6 = __importDefault(require("./campaigns/index"));
+const router = (0, express_1.Router)();
+router.use("/", index_1.default);
+router.use("/webhook/whatsapp", index_3.default);
+router.use("/properties", index_2.default);
+router.use("/clients", index_4.default);
+router.use("/qa", qa_1.default);
+router.use("/templates", index_5.default);
+router.use("/campaigns", index_6.default);
+exports.default = router;
