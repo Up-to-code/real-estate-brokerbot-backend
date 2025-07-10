@@ -1,7 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import { WhatsAppWebhook } from "./type";
+
 import webhookHandlerDataExtraction from "../../services/webhook/webhookHandlerDataExtraction";
 import processWhatsAppTextMessage from "../../services/WhatsApp/processWhatsAppTextMessage";
+import {
+  DEFAULT_CONFIG,
+  sendTextWithTypingEffect,
+  markAsRead,
+  sendText,
+} from "../../services/WhatsApp/whatsapp";
+
 /**
  * POST endpoint for receiving webhook notifications from WhatsApp Business API
  *
@@ -15,53 +23,37 @@ import processWhatsAppTextMessage from "../../services/WhatsApp/processWhatsAppT
  * @route POST /api/v1/webhook/whatsapp
  * @param {Request} req - Express request object containing the webhook payload
  * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
  * @returns {Response} JSON response indicating success or error
- *
- * @example
- * // Example webhook payload
- * {
- *   "object": "whatsapp_business_account",
- *   "entry": [{
- *     "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
- *     "changes": [{
- *       "value": {
- *         "messaging_product": "whatsapp",
- *         "metadata": {
- *           "display_phone_number": "PHONE_NUMBER",
- *           "phone_number_id": "PHONE_NUMBER_ID"
- *         },
- *         "contacts": [{
- *           "profile": { "name": "CONTACT_NAME" },
- *           "wa_id": "WHATSAPP_ID"
- *         }],
- *         "messages": [{
- *           "from": "SENDER_WHATSAPP_ID",
- *           "id": "MESSAGE_ID",
- *           "timestamp": "TIMESTAMP",
- *           "type": "text",
- *           "text": { "body": "MESSAGE_BODY" }
- *         }]
- *       },
- *       "field": "messages"
- *     }]
- *   }]
- * }
  */
-const Handle_Message_webhook = (
+const Handle_Message_webhook = async (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const webhook = req.body as WhatsAppWebhook;
 
+    console.log("🔥 Incoming webhook received");
+
     const result = webhookHandlerDataExtraction(webhook);
+    console.log("🧪 result.messageType:", result.name);
+
     if (result.messageType === "text") {
-      processWhatsAppTextMessage(result);
+      console.log("💬 Processing text message");
+      // Mark the incoming message as read
+      if (result.messageId) {
+        await markAsRead(DEFAULT_CONFIG, result.messageId);
+      }
+      const response = await processWhatsAppTextMessage(result);
+      console.log("🎯 Response from processor:", response);
+      // sendTextWithTypingEffect returns an array, but you likely want to send the full response as one message
+      await sendText(DEFAULT_CONFIG, result.sender, response);
     }
 
     res.status(200).json({ message: "Message received" });
   } catch (error) {
+    console.error("Error in Handle_Message_webhook:", error);
     next(error);
   }
 };

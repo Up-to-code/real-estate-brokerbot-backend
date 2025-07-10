@@ -13,7 +13,7 @@ async function processWhatsAppTextMessage(
   const message = await saveMessageToDb(whatsappClient, client);
   // 3 generateResponse 
   const response = await generateResponse(whatsappClient.message);
-    
+     
   // process message
   return response;
 }

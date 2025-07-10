@@ -27,6 +27,14 @@ async function saveMessageToDb(
     messageStatus = whatsappClient.messageStatus as MessageStatus;
   }
 
+  // Check for duplicate whatsappMessageId
+  const existing = await prisma.message.findUnique({
+    where: { whatsappMessageId: whatsappClient.messageId }
+  });
+  if (existing) {
+    return existing;
+  }
+
   const message = await prisma.message.create({
     data: {
       text: whatsappClient.message,
