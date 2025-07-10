@@ -3,7 +3,17 @@ declare function getDashboardStatistics(): Promise<{
     totalMessages: number;
     activeCampaigns: number;
     activeClients: number;
-    RecentMessages: any;
-    DailyMessages: Promise<any>;
+    RecentMessages: {
+        user: string;
+        action: string;
+        message: string;
+        time: string;
+    }[];
+    DailyMessages: Promise<{
+        id: string;
+        createdAt: Date;
+        date: Date;
+        count: number;
+    }[]>;
 }>;
 export default getDashboardStatistics;

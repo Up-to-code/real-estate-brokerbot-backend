@@ -1,1 +1,6 @@
-export declare const getRecentMessages: () => Promise<any>;
+export declare const getRecentMessages: () => Promise<{
+    user: string;
+    action: string;
+    message: string;
+    time: string;
+}[]>;

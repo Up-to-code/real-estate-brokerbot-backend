@@ -20,6 +20,12 @@ async function saveMessageToDb(whatsappClient, client) {
     if (Object.values(client_1.MessageStatus).includes(whatsappClient.messageStatus)) {
         messageStatus = whatsappClient.messageStatus;
     }
+    const existing = await prisma_1.prisma.message.findUnique({
+        where: { whatsappMessageId: whatsappClient.messageId }
+    });
+    if (existing) {
+        return existing;
+    }
     const message = await prisma_1.prisma.message.create({
         data: {
             text: whatsappClient.message,
