@@ -8,7 +8,10 @@ import {
   sendTextWithTypingEffect,
   markAsRead,
   sendText,
+  sendImage,
+  sendImagesGroup,
 } from "../../services/WhatsApp/whatsapp";
+import { sendPropertyResult } from "./sendPropertyResult";
 
 /**
  * POST endpoint for receiving webhook notifications from WhatsApp Business API
@@ -47,8 +50,13 @@ const Handle_Message_webhook = async (
       }
       const response = await processWhatsAppTextMessage(result);
       console.log("🎯 Response from processor:", response);
-      // sendTextWithTypingEffect returns an array, but you likely want to send the full response as one message
-      await sendText(DEFAULT_CONFIG, result.sender, response);
+      if (typeof response === "string") {
+        // sendTextWithTypingEffect returns an array, but you likely want to send the full response as one message
+        await sendText(DEFAULT_CONFIG, result.sender, response);
+      }
+      if (typeof response === "object" && response && Array.isArray(response.properties)) {
+        await sendPropertyResult(response as any, result.sender);
+      }
     }
 
     res.status(200).json({ message: "Message received" });

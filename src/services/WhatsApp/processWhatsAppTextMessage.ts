@@ -11,9 +11,13 @@ async function processWhatsAppTextMessage(
   const client = await findClientByPhoneNumberOrCreate(whatsappClient);
   // 2. save message to db
   const message = await saveMessageToDb(whatsappClient, client);
-  // 3 generateResponse 
-  const response = await generateResponse(whatsappClient.message);
-     
+  // 3 generateResponse, now pass user info
+  const response = await generateResponse(
+    whatsappClient.message,
+    client.phoneNumber,
+    client.name
+  );
+  console.log("[processWhatsAppTextMessage] Response:", response);
   // process message
   return response;
 }

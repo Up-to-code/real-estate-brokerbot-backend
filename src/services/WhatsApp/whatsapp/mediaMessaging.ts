@@ -18,7 +18,7 @@ export async function sendImage(
     to,
     type: 'image',
     image: {
-      url: imageUrl,
+      link: imageUrl, // WhatsApp API expects 'link', not 'url'
       ...(caption && { caption })
     }
   };
@@ -227,5 +227,39 @@ export async function sendMultipleFiles(
     responses.push(response);
   }
 
+  return responses;
+} 
+
+/**
+ * Sends a group of images to a WhatsApp user as a "gallery" (sequentially).
+ * @param config WhatsApp API config
+ * @param to The WhatsApp number to send to
+ * @param imageUrls Array of image URLs
+ * @param options Optional SendOptions (can include delayBetweenImages in ms)
+ */
+export async function sendImagesGroup(
+  config: WhatsAppConfig,
+  to: string,
+  imageUrls: string[],
+  options: SendOptions & { delayBetweenImages?: number } = {}
+): Promise<WhatsAppResponse[]> {
+  const responses: WhatsAppResponse[] = [];
+  const delay = options.delayBetweenImages || 300; // 300ms default
+
+  for (let i = 0; i < imageUrls.length; i++) {
+    if (i > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    const response = await sendImage(
+      config,
+      to,
+      imageUrls[i],
+      undefined,
+      {
+        replyToMessageId: i === 0 ? options.replyToMessageId : undefined
+      }
+    );
+    responses.push(response);
+  }
   return responses;
 } 

@@ -26,6 +26,8 @@ model Client {
   messages    Message[]
   type        String     @default("Client")
   campaigns   Campaign[] @relation("CampaignToClient")
+  searchHistory SearchHistory[]
+  userMessageHistory UserMessageHistory[]
 }
 
 model DailyMessageStat {
@@ -185,4 +187,22 @@ enum PropertyStatus {
   RENTED
   RESERVED
   OFF_MARKET
+}
+
+model SearchHistory {
+  id        String   @id @default(cuid())
+  clientId  String
+  query     Json
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id])
+}
+
+model UserMessageHistory {
+  id           String   @id @default(cuid())
+  clientId     String
+  message      String
+  responseType String   // "answer" | "search" | "event"
+  llmResponse  String?  // Optionally store the LLM's raw response
+  createdAt    DateTime @default(now())
+  client       Client   @relation(fields: [clientId], references: [id])
 }

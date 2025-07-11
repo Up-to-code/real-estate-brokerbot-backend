@@ -3,7 +3,7 @@ import { prisma } from '../../../lib/prisma';
 
  
 // Types for search functionality
-interface SearchResult {
+export interface SearchResult {
   properties: Property[];
   totalCount: number;
   message: string;
@@ -65,6 +65,14 @@ function normalizeText(text: string): string {
 function extractTokens(text: string): string[] {
   const normalized = normalizeText(text);
   return normalized.split(/\s+/).filter(token => token.length > 1);
+}
+
+// Add this helper near the top (after extractTokens):
+function tokenOverlapScore(query: string, target: string): number {
+  const queryTokens = extractTokens(query);
+  const targetTokens = extractTokens(target);
+  const intersection = queryTokens.filter(token => targetTokens.includes(token));
+  return intersection.length / Math.max(queryTokens.length, 1);
 }
 
 // Extract searchable content from property
@@ -212,6 +220,76 @@ function levenshteinToSimilarity(str1: string, str2: string): number {
   
   const distance = calculateLevenshteinDistance(str1, str2);
   return (maxLength - distance) / maxLength;
+}
+
+// Helper: string similarity (simple ratio, can be replaced with better algo)
+function stringSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  a = a.toLowerCase();
+  b = b.toLowerCase();
+  if (a === b) return 1;
+  // Use Levenshtein distance for similarity
+  const dist = calculateLevenshteinDistance(a, b);
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen === 0 ? 1 : 1 - dist / maxLen;
+}
+
+// Helper: Map user/AI-friendly type string to Prisma PropertyType enum
+function mapToPropertyType(input: string): PropertyType | undefined {
+  if (!input) return undefined;
+  const normalized = input.trim().toLowerCase();
+  switch (normalized) {
+    case "فيلا":
+    case "villa":
+    case "house":
+    case "فلل":
+      return "VILLA";
+    case "شقة":
+    case "apartment":
+    case "flat":
+    case "شقق":
+      return "APARTMENT";
+    case "تاون هاوس":
+    case "تاونهاوس":
+    case "townhouse":
+    case "duplex":
+    case "دوبلكس":
+      return "TOWNHOUSE";
+    case "بنتهاوس":
+    case "penthouse":
+    case "روف":
+    case "أعلى دور":
+      return "PENTHOUSE";
+    case "استوديو":
+    case "studio":
+    case "غرفة واحدة":
+      return "STUDIO";
+    case "مكتب":
+    case "office":
+    case "مكاتب":
+      return "OFFICE";
+    case "محل":
+    case "shop":
+    case "store":
+    case "متجر":
+      return "SHOP";
+    case "مستودع":
+    case "warehouse":
+    case "مخزن":
+      return "WAREHOUSE";
+    case "أرض":
+    case "land":
+    case "plot":
+    case "قطعة أرض":
+    case "قطعة":
+      return "LAND";
+    case "مبنى":
+    case "building":
+    case "عمارة":
+      return "BUILDING";
+    default:
+      return undefined;
+  }
 }
 
 // Build Prisma where clause from filters
@@ -389,7 +467,7 @@ function calculatePropertySimilarity(query: string, property: Property): number 
 
 // Main search function with Prisma integration
 export async function searchProperties(
-  query: string,
+  query: any, // expects a JSON object from AI
   filters: SearchFilters = {},
   options: SearchOptions = {}
 ): Promise<SearchResult> {
@@ -410,17 +488,34 @@ export async function searchProperties(
       filters.isActive = true;
     }
 
-    // Parse query for additional filters
-    const { cleanQuery, filters: parsedFilters } = parseSearchQuery(query);
-    const combinedFilters = { ...filters, ...parsedFilters };
+    // Use all fields from query object for filtering
+    const fieldMap = [
+      'city', 'type', 'minPrice', 'maxPrice', 'minBedrooms', 'maxBedrooms',
+      'minBathrooms', 'maxBathrooms', 'minArea', 'maxArea', 'furnished',
+      'petFriendly', 'parking', 'yearBuilt', 'address', 'country'
+    ];
+    for (const key of fieldMap) {
+      if (key === 'type' && query.type !== undefined) {
+        const mappedType = mapToPropertyType(query.type);
+        if (mappedType) {
+          (filters as any).type = mappedType;
+        } else {
+          delete (filters as any).type;
+        }
+      } else if (key !== 'type' && query[key] !== undefined) {
+        (filters as any)[key] = query[key];
+      }
+    }
+    // Only use similarity if title or description is present
+    const title = query.title || '';
+    const description = query.description || '';
 
     // Build Prisma query
-    const where = buildWhereClause(combinedFilters, cleanQuery);
+    const where = buildWhereClause(filters);
     const orderBy = buildOrderByClause(searchOptions);
 
     // Get total count
     const totalCount = await prisma.property.count({ where });
-
     if (totalCount === 0) {
       return {
         properties: [],
@@ -431,35 +526,99 @@ export async function searchProperties(
     }
 
     // Get properties with pagination
-    let properties: Property[];
-    
-    if (searchOptions.sortBy === 'relevance' && cleanQuery.trim()) {
-      // For relevance sorting, get more results and sort by similarity
-      const allProperties = await prisma.property.findMany({
+    let properties: Property[] = [];
+    let allProperties: Property[] = [];
+    if (title && title.trim()) {
+      // Prioritize title similarity
+      allProperties = await prisma.property.findMany({
         where,
-        take: Math.min(totalCount, 100), // Limit to 100 for performance
+        take: Math.min(totalCount, 100),
         skip: searchOptions.offset
       });
-
-      // Calculate similarity scores and sort
       const scoredProperties = allProperties.map(property => ({
         property,
-        similarity: calculatePropertySimilarity(cleanQuery, property)
+        similarity: stringSimilarity(title, property.title)
       }));
-
-      scoredProperties.sort((a, b) => {
-        if (searchOptions.prioritizeFeatured) {
-          if (a.property.isFeatured && !b.property.isFeatured) return -1;
-          if (!a.property.isFeatured && b.property.isFeatured) return 1;
-        }
-        return b.similarity - a.similarity;
-      });
-
       properties = scoredProperties
+        .filter(item => item.similarity >= 0.85)
+        .sort((a, b) => b.similarity - a.similarity)
         .slice(0, searchOptions.limit)
         .map(item => item.property);
+      // If no properties found by title, try description similarity
+      if (properties.length === 0 && description && description.trim()) {
+        const descScored = allProperties.map(property => ({
+          property,
+          similarity: stringSimilarity(description, property.description)
+        }));
+        properties = descScored
+          .filter(item => item.similarity >= 0.85)
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, searchOptions.limit)
+          .map(item => item.property);
+      }
+      // If still none, fallback to top 3 most similar properties by title (improved)
+      if (properties.length === 0 && allProperties.length > 0) {
+        const scoredPropertiesWithTokens = scoredProperties.map(item => ({
+          ...item,
+          tokenScore: tokenOverlapScore(title, item.property.title)
+        }));
+        const bestMatches = scoredPropertiesWithTokens
+          .sort((a, b) => (b.tokenScore + b.similarity) - (a.tokenScore + a.similarity))
+          .slice(0, 3)
+          .filter(item => (item.tokenScore + item.similarity) > 0);
+        if (bestMatches.length > 0) {
+          properties = bestMatches.map(item => item.property);
+        }
+      }
+      // If still none, fallback to standard filter-based search
+      if (properties.length === 0) {
+        properties = await prisma.property.findMany({
+          where,
+          orderBy,
+          take: searchOptions.limit,
+          skip: searchOptions.offset
+        });
+      }
+    } else if (description && description.trim()) {
+      // If only description is present
+      allProperties = await prisma.property.findMany({
+        where,
+        take: Math.min(totalCount, 100),
+        skip: searchOptions.offset
+      });
+      const descScored = allProperties.map(property => ({
+        property,
+        similarity: stringSimilarity(description, property.description)
+      }));
+      properties = descScored
+        .filter(item => item.similarity >= 0.85)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, searchOptions.limit)
+        .map(item => item.property);
+      // If still none, fallback to top 3 most similar properties by description (improved)
+      if (properties.length === 0 && allProperties.length > 0) {
+        const descScoredWithTokens = descScored.map(item => ({
+          ...item,
+          tokenScore: tokenOverlapScore(description, item.property.description)
+        }));
+        const bestMatches = descScoredWithTokens
+          .sort((a, b) => (b.tokenScore + b.similarity) - (a.tokenScore + a.similarity))
+          .slice(0, 3)
+          .filter(item => (item.tokenScore + item.similarity) > 0);
+        if (bestMatches.length > 0) {
+          properties = bestMatches.map(item => item.property);
+        }
+      }
+      if (properties.length === 0) {
+        properties = await prisma.property.findMany({
+          where,
+          orderBy,
+          take: searchOptions.limit,
+          skip: searchOptions.offset
+        });
+      }
     } else {
-      // For other sorting methods, use Prisma's built-in sorting
+      // Use standard filter-based search
       properties = await prisma.property.findMany({
         where,
         orderBy,

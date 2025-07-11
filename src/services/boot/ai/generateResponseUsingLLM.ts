@@ -15,7 +15,7 @@ interface OpenAIResponse {
 }
 
 interface OpenAIService {
-  sendPrompt(message: string): Promise<string>;
+  sendPrompt(message: string, phoneNumber?: string, name?: string, historySummary?: string): Promise<string>;
 }
 
 interface ResponseParser {
@@ -30,9 +30,9 @@ class OpenAIServiceImpl implements OpenAIService {
     this.openai = new OpenAI({ apiKey });
   }
 
-  async sendPrompt(message: string): Promise<string> {
+  async sendPrompt(message: string, phoneNumber?: string, name?: string, historySummary?: string): Promise<string> {
     try {
-      const systemPrompt = this.createSystemPrompt();
+      const systemPrompt = this.createSystemPrompt(phoneNumber, name, historySummary);
       const userPrompt = this.createUserPrompt(message);
 
       const completion = await this.openai.chat.completions.create({
@@ -56,24 +56,56 @@ class OpenAIServiceImpl implements OpenAIService {
     }
   }
 
-  private createSystemPrompt(): string {
+  private createSystemPrompt(phoneNumber?: string, name?: string, historySummary?: string): string {
     return `أنت وسيط عقاري محترف في شركة "اتجاه العقارية" في جدة، المملكة العربية السعودية.
+
+معلومات المستخدم:
+- رقم الجوال: ${phoneNumber || 'غير متوفر'}
+${name ? `- الاسم: ${name}` : ''}
+${historySummary ? `\nمعلومات سابقة عن المستخدم:\n${historySummary}` : ''}
 
 يجب أن تكون ردودك بصيغة JSON بالهيكل التالي:
 {
   "type": "answer" | "search" | "event",
   "content": "نص الرد",
-  "query": "استعلام البحث إذا كان النوع search",
+  "query": { // إذا كان النوع search فقط
+    "title": "عنوان العقار (اختياري، ويجب إعطاؤه أولوية إذا ذكر المستخدم اسم أو ميزة رئيسية، أو إذا ذكر المستخدم عبارة مركبة مثل 'فيلا فاخرة بأبحر الشمالية'، ضع 'فيلا' في type والباقي في title)",
+    "description": "وصف العقار (اختياري)",
+    "city": "اسم المدينة (اختياري)",
+    "type": "نوع العقار (اختياري)",
+    "minPrice": "أقل سعر (اختياري)",
+    "maxPrice": "أعلى سعر (اختياري)",
+    "minBedrooms": "أقل عدد غرف (اختياري)",
+    "maxBedrooms": "أعلى عدد غرف (اختياري)",
+    "minBathrooms": "أقل عدد حمامات (اختياري)",
+    "maxBathrooms": "أعلى عدد حمامات (اختياري)",
+    "minArea": "أقل مساحة (اختياري)",
+    "maxArea": "أعلى مساحة (اختياري)",
+    "furnished": "مفروش (اختياري)",
+    "petFriendly": "يسمح بالحيوانات (اختياري)",
+    "parking": "موقف سيارات (اختياري)",
+    "yearBuilt": "سنة البناء (اختياري)",
+    "address": "العنوان (اختياري)",
+    "country": "الدولة (اختياري)"
+  },
   "eventName": "اسم المناسبة إذا كان النوع event",
   "eventDetails": "تفاصيل المناسبة إذا كان النوع event"
 }
 
-أنواع الردود:
-1. "answer": للأسئلة العقارية العامة، نصائح السوق، أو الاستفسارات المعلوماتية
-2. "search": عندما يريد المستخدم البحث عن عقارات (ضع مصطلحات البحث ذات الصلة في "query")
-3. "event": عندما يريد المستخدم جدولة شيء مثل المعاينة، مكالمة، اجتماع، إلخ
+مهم جداً: إذا كان نوع الرد "search"، يجب أن يكون الحقل 'query' دائماً كائن JSON (object) يحتوي فقط على الحقول التي ذكرها المستخدم في رسالته (ولا يكون أبداً نصاً أو جملة). إذا ذكر المستخدم اسم عقار أو ميزة رئيسية أو كلمة مفتاحية، ضعها في حقل 'title' وأعطها أولوية في البحث. إذا ذكر المستخدم عبارة مركبة مثل 'فيلا فاخرة بأبحر الشمالية'، استخرج نوع العقار (مثل 'فيلا') وضعه في 'type'، وضع باقي العبارة (مثل 'فاخرة بأبحر الشمالية') في 'title'.
 
-تعليمات مهمة:
+مثال:
+إذا كتب المستخدم: "أبحث عن فيلا فاخرة بأبحر الشمالية"
+يجب أن يكون الرد:
+{
+  "type": "search",
+  "content": "تم العثور على بعض الفلل الفاخرة في أبحر الشمالية...",
+  "query": {
+    "type": "فيلا",
+    "title": "فاخرة بأبحر الشمالية"
+  }
+}
+
 - استخدم اللهجة السعودية الطبيعية والمألوفة
 - كن مهذباً ومحترفاً مع الدفء الاجتماعي السعودي
 - استخدم مصطلحات عقارية سعودية (مثل: فيلا، شقة، دور، استراحة، أرض، مخطط)
@@ -98,6 +130,23 @@ class OpenAIServiceImpl implements OpenAIService {
 
 // Response Parser Implementation
 class ResponseParserImpl implements ResponseParser {
+  // Helper: Map Arabic property type to enum
+  private arabicTypeToEnum: Record<string, string> = {
+    "فيلا": "VILLA",
+    "شقة": "APARTMENT",
+    "دور": "BUILDING",
+    "استراحة": "LAND",
+    "أرض": "LAND",
+    "مخطط": "LAND",
+    "تاون هاوس": "TOWNHOUSE",
+    "بنتهاوس": "PENTHOUSE",
+    "استوديو": "STUDIO",
+    "مكتب": "OFFICE",
+    "محل": "SHOP",
+    "مستودع": "WAREHOUSE",
+    "عمارة": "BUILDING"
+  };
+
   parseResponse(response: string): ProcessedResult {
     try {
       const parsed = this.parseJsonResponse(response);
@@ -136,6 +185,14 @@ class ResponseParserImpl implements ResponseParser {
         if (!parsed.query) {
           throw new Error('Search response missing query field');
         }
+        // Map Arabic type to enum if present
+        if (typeof parsed.query === 'object' && parsed.query !== null && 'type' in parsed.query && typeof (parsed.query as Record<string, any>).type === 'string') {
+          const queryObj = parsed.query as Record<string, any>;
+          const arType = queryObj.type.trim();
+          if (this.arabicTypeToEnum[arType]) {
+            queryObj.type = this.arabicTypeToEnum[arType];
+          }
+        }
         return {
           type: 'search',
           query: parsed.query
@@ -160,7 +217,10 @@ class ResponseParserImpl implements ResponseParser {
 // Main orchestrator function
 export async function processRealEstateMessage(
   message: string,
-  openaiApiKey: string = process.env.OPENAI_API_KEY || ''
+  openaiApiKey: string = process.env.OPENAI_API_KEY || '',
+  phoneNumber?: string,
+  name?: string,
+  historySummary?: string
 ): Promise<ProcessedResult> {
   // Input validation
   if (!message?.trim()) {
@@ -177,7 +237,7 @@ export async function processRealEstateMessage(
 
   try {
     // Get AI response
-    const aiResponse = await openaiService.sendPrompt(message);
+    const aiResponse = await openaiService.sendPrompt(message, phoneNumber, name, historySummary);
     
     // Parse and return structured result
     return responseParser.parseResponse(aiResponse);
