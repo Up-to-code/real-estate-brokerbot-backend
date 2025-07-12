@@ -28,6 +28,7 @@ model Client {
   campaigns   Campaign[] @relation("CampaignToClient")
   searchHistory SearchHistory[]
   userMessageHistory UserMessageHistory[]
+  plan        Plan       @default(FREE)
 }
 
 model DailyMessageStat {
@@ -132,7 +133,7 @@ model Property {
   title       String
   description String
   price       Float
-  currency    String         @default("USD")
+  currency    String         @default("SAR")
   type        PropertyType
   status      PropertyStatus @default(AVAILABLE)
   bedrooms    Int?
@@ -205,4 +206,10 @@ model UserMessageHistory {
   llmResponse  String?  // Optionally store the LLM's raw response
   createdAt    DateTime @default(now())
   client       Client   @relation(fields: [clientId], references: [id])
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
 }

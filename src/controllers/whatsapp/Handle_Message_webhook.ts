@@ -12,6 +12,7 @@ import {
   sendImagesGroup,
 } from "../../services/WhatsApp/whatsapp";
 import { sendPropertyResult } from "./sendPropertyResult";
+import { handleTextMessage } from "./handleTextMessage";
 
 /**
  * POST endpoint for receiving webhook notifications from WhatsApp Business API
@@ -37,26 +38,10 @@ const Handle_Message_webhook = async (
   try {
     const webhook = req.body as WhatsAppWebhook;
 
-    console.log("🔥 Incoming webhook received");
-
     const result = webhookHandlerDataExtraction(webhook);
-    console.log("🧪 result.messageType:", result.name);
 
     if (result.messageType === "text") {
-      console.log("💬 Processing text message");
-      // Mark the incoming message as read
-      if (result.messageId) {
-        await markAsRead(DEFAULT_CONFIG, result.messageId);
-      }
-      const response = await processWhatsAppTextMessage(result);
-      console.log("🎯 Response from processor:", response);
-      if (typeof response === "string") {
-        // sendTextWithTypingEffect returns an array, but you likely want to send the full response as one message
-        await sendText(DEFAULT_CONFIG, result.sender, response);
-      }
-      if (typeof response === "object" && response && Array.isArray(response.properties)) {
-        await sendPropertyResult(response as any, result.sender);
-      }
+      await handleTextMessage(result);
     }
 
     res.status(200).json({ message: "Message received" });
