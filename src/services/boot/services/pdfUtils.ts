@@ -16,4 +16,20 @@ export async function uploadPDFAndGetUrl(pdfBuffer: Buffer, property: any, name?
   console.log('📤 [uploadPDFAndGetUrl] Called with:', { pdfBuffer, property, name });
   // TODO: Implement PDF upload and return URL
   return '';
+}
+
+export async function createPropertyPdf({ property, name, otherData }: {
+  property: any;
+  name?: string;
+  otherData?: any;
+}): Promise<string> {
+  // Log all input for debugging
+  console.log("[PDF] Creating PDF for property:", {
+    id: property?.id,
+    title: property?.title,
+    name,
+    otherData
+  });
+  // Return a fake but clear URL for now
+  return `https://example.com/fake-pdf/${property?.id || 'unknown'}.pdf`;
 } 

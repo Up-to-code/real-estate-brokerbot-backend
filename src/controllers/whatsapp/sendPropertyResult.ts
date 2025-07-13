@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG, sendText, sendImagesGroup } from "../../services/WhatsApp/whatsapp";
 
 interface Property {
+  id?: string; // Ensure id is present
   title: string;
   description: string;
   price: number;
@@ -44,6 +45,7 @@ export async function sendPropertyResult(response: PropertyResponse, recipient: 
       }
       // Then send property details as rich text (Arabic)
       const propertyText =
+        `🏷 معرف العقار: ${property.id || 'غير متوفر'}\n` +
         `🏠 العنوان: ${property.title}\n` +
         `${property.description}\n` +
         `💰 السعر: ${property.price} ${property.currency}\n` +

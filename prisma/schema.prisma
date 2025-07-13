@@ -194,6 +194,8 @@ model SearchHistory {
   id        String   @id @default(cuid())
   clientId  String
   query     Json
+  propertyId String? // Added for last searched property
+  propertyName String? // Added for last searched property
   createdAt DateTime @default(now())
   client    Client   @relation(fields: [clientId], references: [id])
 }

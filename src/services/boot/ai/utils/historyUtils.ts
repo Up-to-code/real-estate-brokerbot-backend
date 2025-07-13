@@ -26,7 +26,11 @@ export async function buildHistorySummary(phoneNumber?: string): Promise<{ summa
     .map((m, i) => `رسالة ${i + 1}: ${m.message} (نوع الرد: ${m.responseType})`)
     .join("\n");
   const searchesSummary = recentSearches
-    .map((h, i) => `بحث ${i + 1}: ${JSON.stringify(h.query)}`)
+    .map((h, i) => {
+      let base = `بحث ${i + 1}: ${JSON.stringify(h.query)}`;
+      if (h.propertyId) base += ` (propertyId: ${h.propertyId})`;
+      return base;
+    })
     .join("\n");
   const summary = [messagesSummary, searchesSummary].filter(Boolean).join("\n");
   return { summary, clientId: client.id };
@@ -66,4 +70,21 @@ export function getPropertyNameFromHistory(historySummary: string): string | und
     }
   }
   return undefined;
+}
+
+export async function saveSearchHistory(clientId: string, query: any, properties: any) {
+  if (properties.properties && properties.properties.length === 1) {
+    await prisma.searchHistory.create({
+      data: {
+        clientId,
+        query,
+        propertyId: properties.properties[0].id,
+        propertyName: properties.properties[0].title,
+      },
+    });
+  } else {
+    await prisma.searchHistory.create({
+      data: { clientId, query },
+    });
+  }
 } 

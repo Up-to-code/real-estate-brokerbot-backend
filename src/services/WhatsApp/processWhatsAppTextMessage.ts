@@ -17,7 +17,6 @@ async function processWhatsAppTextMessage(
     client.phoneNumber,
     client.name
   );
-  console.log("[processWhatsAppTextMessage] Response:", response);
   // process message
   return response;
 }
