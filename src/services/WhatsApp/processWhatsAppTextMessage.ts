@@ -21,6 +21,7 @@ async function processWhatsAppTextMessage(
 ) {
   // 1. find or create client
   const client = await findClientByPhoneNumberOrCreate(whatsappClient);
+  
   // 2. save message to db
   await saveMessageToDb(whatsappClient, client);
 

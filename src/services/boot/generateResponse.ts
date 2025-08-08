@@ -25,7 +25,7 @@ async function generateResponse(
     undefined,
     phoneNumber,
     name,
-    historySummary
+    // historySummary
   );
 
   logLLMResponse(response);

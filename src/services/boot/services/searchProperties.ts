@@ -40,6 +40,11 @@ interface SearchOptions {
   sortOrder?: 'asc' | 'desc';
 }
 
+// Helper function to check if a value is valid (not null or undefined)
+function isValidValue(value: any): boolean {
+  return value !== null && value !== undefined;
+}
+
 // Simplified text normalization
 function normalizeText(text: string): string {
   return text
@@ -154,11 +159,16 @@ function mapToPropertyType(input: string): PropertyType | undefined {
 function buildWhereClause(filters: SearchFilters, searchQuery?: string): Prisma.PropertyWhereInput {
   const where: Prisma.PropertyWhereInput = {};
 
-  // Price filters
-  if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-    where.price = {};
-    if (filters.minPrice !== undefined) where.price.gte = filters.minPrice;
-    if (filters.maxPrice !== undefined) where.price.lte = filters.maxPrice;
+  // Price filters - only add if values are defined and valid
+  const priceConditions: any = {};
+  if (isValidValue(filters.minPrice)) {
+    priceConditions.gte = filters.minPrice;
+  }
+  if (isValidValue(filters.maxPrice)) {
+    priceConditions.lte = filters.maxPrice;
+  }
+  if (Object.keys(priceConditions).length > 0) {
+    where.price = priceConditions;
   }
 
   // Basic property filters
@@ -167,34 +177,49 @@ function buildWhereClause(filters: SearchFilters, searchQuery?: string): Prisma.
   if (filters.city) where.city = { contains: filters.city, mode: 'insensitive' };
   if (filters.country) where.country = { contains: filters.country, mode: 'insensitive' };
 
-  // Room filters
-  if (filters.minBedrooms !== undefined || filters.maxBedrooms !== undefined) {
-    where.bedrooms = {};
-    if (filters.minBedrooms !== undefined) where.bedrooms.gte = filters.minBedrooms;
-    if (filters.maxBedrooms !== undefined) where.bedrooms.lte = filters.maxBedrooms;
+  // Room filters - only add if values are defined and valid
+  const bedroomConditions: any = {};
+  if (isValidValue(filters.minBedrooms)) {
+    bedroomConditions.gte = filters.minBedrooms;
+  }
+  if (isValidValue(filters.maxBedrooms)) {
+    bedroomConditions.lte = filters.maxBedrooms;
+  }
+  if (Object.keys(bedroomConditions).length > 0) {
+    where.bedrooms = bedroomConditions;
   }
 
-  if (filters.minBathrooms !== undefined || filters.maxBathrooms !== undefined) {
-    where.bathrooms = {};
-    if (filters.minBathrooms !== undefined) where.bathrooms.gte = filters.minBathrooms;
-    if (filters.maxBathrooms !== undefined) where.bathrooms.lte = filters.maxBathrooms;
+  const bathroomConditions: any = {};
+  if (isValidValue(filters.minBathrooms)) {
+    bathroomConditions.gte = filters.minBathrooms;
+  }
+  if (isValidValue(filters.maxBathrooms)) {
+    bathroomConditions.lte = filters.maxBathrooms;
+  }
+  if (Object.keys(bathroomConditions).length > 0) {
+    where.bathrooms = bathroomConditions;
   }
 
-  // Area filters
-  if (filters.minArea !== undefined || filters.maxArea !== undefined) {
-    where.area = {};
-    if (filters.minArea !== undefined) where.area.gte = filters.minArea;
-    if (filters.maxArea !== undefined) where.area.lte = filters.maxArea;
+  // Area filters - only add if values are defined and valid
+  const areaConditions: any = {};
+  if (isValidValue(filters.minArea)) {
+    areaConditions.gte = filters.minArea;
+  }
+  if (isValidValue(filters.maxArea)) {
+    areaConditions.lte = filters.maxArea;
+  }
+  if (Object.keys(areaConditions).length > 0) {
+    where.area = areaConditions;
   }
 
   // Parking filters
-  if (filters.minParking !== undefined) {
+  if (isValidValue(filters.minParking)) {
     where.parking = { gte: filters.minParking };
   } else if (filters.parking !== undefined) {
     where.parking = filters.parking ? { gt: 0 } : { lte: 0 };
   }
 
-  // Boolean filters
+  // Boolean filters - only add if explicitly set
   if (filters.furnished !== undefined) where.furnished = filters.furnished;
   if (filters.petFriendly !== undefined) where.petFriendly = filters.petFriendly;
   if (filters.isActive !== undefined) where.isActive = filters.isActive;
@@ -202,7 +227,9 @@ function buildWhereClause(filters: SearchFilters, searchQuery?: string): Prisma.
 
   // Other filters
   if (filters.agentId) where.agentId = filters.agentId;
-  if (filters.yearBuilt) where.yearBuilt = filters.yearBuilt;
+  if (isValidValue(filters.yearBuilt)) {
+    where.yearBuilt = filters.yearBuilt;
+  }
 
   // Text search across multiple fields
   if (searchQuery && searchQuery.trim()) {
@@ -265,26 +292,29 @@ function parseSearchQuery(query: any): { cleanQuery: string; filters: SearchFilt
   if (typeof query === 'string') {
     cleanQuery = query;
   } else if (typeof query === 'object' && query !== null) {
-    // Extract filters from query object
-    const fieldMap = [
+    // Extract filters from query object - only include valid values
+    const fieldMap: (keyof SearchFilters)[] = [
       'city', 'type', 'minPrice', 'maxPrice', 'minBedrooms', 'maxBedrooms',
       'minBathrooms', 'maxBathrooms', 'minArea', 'maxArea', 'furnished',
-      'petFriendly', 'parking', 'yearBuilt', 'address', 'country'
+      'petFriendly', 'parking', 'yearBuilt', 'country'
     ];
 
     for (const key of fieldMap) {
-      if (key === 'type' && query.type !== undefined) {
-        const mappedType = mapToPropertyType(query.type);
+      const value = query[key];
+      
+      if (key === 'type' && value !== undefined && value !== null) {
+        const mappedType = mapToPropertyType(value);
         if (mappedType) {
-          (filters as any).type = mappedType;
+          filters.type = mappedType;
         }
-      } else if (key !== 'type' && query[key] !== undefined) {
-        (filters as any)[key] = query[key];
+      } else if (key !== 'type' && isValidValue(value)) {
+        // Only assign valid values (not null or undefined)
+        (filters as any)[key] = value;
       }
     }
 
     // Extract text search terms
-    const textFields = ['title', 'description', 'location'];
+    const textFields = ['title', 'description', 'location', 'address'];
     const textParts: string[] = [];
     
     for (const field of textFields) {
@@ -294,6 +324,11 @@ function parseSearchQuery(query: any): { cleanQuery: string; filters: SearchFilt
     }
     
     cleanQuery = textParts.join(' ');
+    
+    // Handle district field separately - map to city if no city is provided
+    if (query.district && typeof query.district === 'string' && !filters.city) {
+      filters.city = query.district;
+    }
   }
 
   // If we have a string query, parse it for natural language
@@ -308,23 +343,23 @@ function parseSearchQuery(query: any): { cleanQuery: string; filters: SearchFilt
   return { cleanQuery: cleanQuery.trim(), filters };
 }
 
-// Parse natural language search query
+// Enhanced natural language parsing for Arabic locations
 export function parseNaturalLanguageQuery(query: string): { cleanQuery: string; filters: SearchFilters } {
   const filters: SearchFilters = {};
   let cleanQuery = normalizeText(query);
   
   // Extract property type first
   const typeMatches: [RegExp, PropertyType][] = [
-    [/(شقة|شقق|apartment|flat)/, PropertyType.APARTMENT],
-    [/(فيلا|فلل|villa)/, PropertyType.VILLA],
-    [/(تاون|townhouse)/, PropertyType.TOWNHOUSE],
-    [/(بنتهاوس|penthouse)/, PropertyType.PENTHOUSE],
-    [/(استوديو|studio)/, PropertyType.STUDIO],
-    [/(مكتب|مكاتب|office)/, PropertyType.OFFICE],
-    [/(محل|متجر|shop|store)/, PropertyType.SHOP],
-    [/(مستودع|مخزن|warehouse)/, PropertyType.WAREHOUSE],
-    [/(أرض|قطعة|land|plot)/, PropertyType.LAND],
-    [/(مبنى|عمارة|building)/, PropertyType.BUILDING]
+    [/(شقة|شقق|apartment|flat)/i, PropertyType.APARTMENT],
+    [/(فيلا|فلل|villa)/i, PropertyType.VILLA],
+    [/(تاون|townhouse)/i, PropertyType.TOWNHOUSE],
+    [/(بنتهاوس|penthouse)/i, PropertyType.PENTHOUSE],
+    [/(استوديو|studio)/i, PropertyType.STUDIO],
+    [/(مكتب|مكاتب|office)/i, PropertyType.OFFICE],
+    [/(محل|متجر|shop|store)/i, PropertyType.SHOP],
+    [/(مستودع|مخزن|warehouse)/i, PropertyType.WAREHOUSE],
+    [/(أرض|قطعة|land|plot)/i, PropertyType.LAND],
+    [/(مبنى|عمارة|building)/i, PropertyType.BUILDING]
   ];
   
   for (const [regex, type] of typeMatches) {
@@ -335,51 +370,57 @@ export function parseNaturalLanguageQuery(query: string): { cleanQuery: string; 
     }
   }
 
-  // Extract location/city - improved Arabic location matching
+  // Enhanced location matching - prioritize specific districts
   const locationMatches: [RegExp, string][] = [
-    [/(أبحر الشمالية|abhar al shamaliyah)/, 'أبحر الشمالية'],
-    [/(أبحر الجنوبية|abhar al janubiyah)/, 'أبحر الجنوبية'],
-    [/(الروضة|al rawdah)/, 'الروضة'],
-    [/(الحمراء|al hamra)/, 'الحمراء'],
-    [/(المرجان|al marjan)/, 'المرجان'],
-    [/(الشاطئ|al shati)/, 'الشاطئ'],
-    [/(الصفا|al safa)/, 'الصفا'],
-    [/(المحمدية|al muhammadiyah)/, 'المحمدية'],
-    [/(الرحاب|al rahab)/, 'الرحاب'],
-    [/(السامر|al samer)/, 'السامر'],
-    [/(الفيصلية|al faisaliyah)/, 'الفيصلية'],
-    [/(الصالحية|al salhiyah)/, 'الصالحية'],
-    [/(الخالدية|al khalidiyah)/, 'الخالدية'],
-    [/(الوزيرية|al waziriyah)/, 'الوزيرية'],
-    [/(الزهراء|al zahra)/, 'الزهراء'],
-    [/(المروة|al marwah)/, 'المروة'],
-    [/(الأندلس|al andalus)/, 'الأندلس'],
-    [/(الأجاويد|al ajawid)/, 'الأجاويد'],
-    [/(الجامعة|al jamiah)/, 'الجامعة'],
-    [/(الصحيفة|al sahifah)/, 'الصحيفة'],
-    [/(الربوة|al rabwah)/, 'الربوة'],
-    [/(الشرفية|al sharafiyah)/, 'الشرفية'],
-    [/(الكندرة|al kandarah)/, 'الكندرة'],
-    [/(الشعبة|al shuabah)/, 'الشعبة'],
-    [/(الجوهرة|al jawharah)/, 'الجوهرة'],
-    [/(السلامة|al salamah)/, 'السلامة'],
-    [/(الروابي|al rawabi)/, 'الروابي'],
-    [/(الفروسية|al furusiyah)/, 'الفروسية'],
-    [/(الواحة|al wahah)/, 'الواحة'],
-    [/(الخمرة|al khamrah)/, 'الخمرة'],
-    [/(الحرازات|al harazat)/, 'الحرازات'],
-    [/(الصواري|al sawari)/, 'الصواري'],
-    [/(الشاطبي|al shatbi)/, 'الشاطبي'],
-    [/(الطيبات|al tayibat)/, 'الطيبات'],
-    [/(الشرقية|al sharqiyah)/, 'الشرقية'],
-    [/(الغربية|al gharbiyah)/, 'الغربية'],
-    [/(الشمالية|al shamaliyah)/, 'الشمالية'],
-    [/(الجنوبية|al janubiyah)/, 'الجنوبية'],
-    [/(جدة|jeddah)/, 'جدة'],
-    [/(الرياض|riyadh)/, 'الرياض'],
-    [/(دبي|dubai)/, 'دبي'],
-    [/(أبو ظبي|abu dhabi)/, 'أبو ظبي'],
-    [/(الشارقة|sharjah)/, 'الشارقة']
+    // Abhar districts (most specific first)
+    [/(أبحر الشمالية|abhar al shamaliyah)/i, 'أبحر الشمالية'],
+    [/(أبحر الجنوبية|abhar al janubiyah)/i, 'أبحر الجنوبية'],
+    [/(أبحره|أبحر|abhar)/i, 'أبحر الشمالية'], // Default to North Abhar
+    
+    // Other Jeddah districts
+    [/(الروضة|al rawdah)/i, 'الروضة'],
+    [/(الحمراء|al hamra)/i, 'الحمراء'],
+    [/(المرجان|al marjan)/i, 'المرجان'],
+    [/(الشاطئ|al shati)/i, 'الشاطئ'],
+    [/(الصفا|al safa)/i, 'الصفا'],
+    [/(المحمدية|al muhammadiyah)/i, 'المحمدية'],
+    [/(الرحاب|al rahab)/i, 'الرحاب'],
+    [/(السامر|al samer)/i, 'السامر'],
+    [/(الفيصلية|al faisaliyah)/i, 'الفيصلية'],
+    [/(الصالحية|al salhiyah)/i, 'الصالحية'],
+    [/(الخالدية|al khalidiyah)/i, 'الخالدية'],
+    [/(الوزيرية|al waziriyah)/i, 'الوزيرية'],
+    [/(الزهراء|al zahra)/i, 'الزهراء'],
+    [/(المروة|al marwah)/i, 'المروة'],
+    [/(الأندلس|al andalus)/i, 'الأندلس'],
+    [/(الأجاويد|al ajawid)/i, 'الأجاويد'],
+    [/(الجامعة|al jamiah)/i, 'الجامعة'],
+    [/(الصحيفة|al sahifah)/i, 'الصحيفة'],
+    [/(الربوة|al rabwah)/i, 'الربوة'],
+    [/(الشرفية|al sharafiyah)/i, 'الشرفية'],
+    [/(الكندرة|al kandarah)/i, 'الكندرة'],
+    [/(الشعبة|al shuabah)/i, 'الشعبة'],
+    [/(الجوهرة|al jawharah)/i, 'الجوهرة'],
+    [/(السلامة|al salamah)/i, 'السلامة'],
+    [/(الروابي|al rawabi)/i, 'الروابي'],
+    [/(الفروسية|al furusiyah)/i, 'الفروسية'],
+    [/(الواحة|al wahah)/i, 'الواحة'],
+    [/(الخمرة|al khamrah)/i, 'الخمرة'],
+    [/(الحرازات|al harazat)/i, 'الحرازات'],
+    [/(الصواري|al sawari)/i, 'الصواري'],
+    [/(الشاطبي|al shatbi)/i, 'الشاطبي'],
+    [/(الطيبات|al tayibat)/i, 'الطيبات'],
+    [/(الشرقية|al sharqiyah)/i, 'الشرقية'],
+    [/(الغربية|al gharbiyah)/i, 'الغربية'],
+    [/(الشمالية|al shamaliyah)/i, 'الشمالية'],
+    [/(الجنوبية|al janubiyah)/i, 'الجنوبية'],
+    
+    // Major cities
+    [/(جدة|jeddah)/i, 'جدة'],
+    [/(الرياض|riyadh)/i, 'الرياض'],
+    [/(دبي|dubai)/i, 'دبي'],
+    [/(أبو ظبي|abu dhabi)/i, 'أبو ظبي'],
+    [/(الشارقة|sharjah)/i, 'الشارقة']
   ];
   
   for (const [regex, location] of locationMatches) {
@@ -393,43 +434,49 @@ export function parseNaturalLanguageQuery(query: string): { cleanQuery: string; 
   // Extract price range
   const priceMatch = cleanQuery.match(/(\d+(?:,\d+)?)\s*[-–]\s*(\d+(?:,\d+)?)/);
   if (priceMatch) {
-    filters.minPrice = parseFloat(priceMatch[1].replace(',', ''));
-    filters.maxPrice = parseFloat(priceMatch[2].replace(',', ''));
+    const minPrice = parseFloat(priceMatch[1].replace(',', ''));
+    const maxPrice = parseFloat(priceMatch[2].replace(',', ''));
+    if (!isNaN(minPrice)) filters.minPrice = minPrice;
+    if (!isNaN(maxPrice)) filters.maxPrice = maxPrice;
     cleanQuery = cleanQuery.replace(priceMatch[0], '').trim();
   }
   
   // Extract bedroom count
-  const bedroomMatch = cleanQuery.match(/(\d+)\s*(غرف|غرفة|bedroom|br|bed)/);
+  const bedroomMatch = cleanQuery.match(/(\d+)\s*(غرف|غرفة|bedroom|br|bed)/i);
   if (bedroomMatch) {
     const bedrooms = parseInt(bedroomMatch[1]);
-    filters.minBedrooms = bedrooms;
-    filters.maxBedrooms = bedrooms;
+    if (!isNaN(bedrooms)) {
+      filters.minBedrooms = bedrooms;
+      filters.maxBedrooms = bedrooms;
+    }
     cleanQuery = cleanQuery.replace(bedroomMatch[0], '').trim();
   }
   
   // Extract bathroom count
-  const bathroomMatch = cleanQuery.match(/(\d+)\s*(حمام|bathroom|bath|ba)/);
+  const bathroomMatch = cleanQuery.match(/(\d+)\s*(حمام|bathroom|bath|ba)/i);
   if (bathroomMatch) {
     const bathrooms = parseInt(bathroomMatch[1]);
-    filters.minBathrooms = bathrooms;
-    filters.maxBathrooms = bathrooms;
+    if (!isNaN(bathrooms)) {
+      filters.minBathrooms = bathrooms;
+      filters.maxBathrooms = bathrooms;
+    }
     cleanQuery = cleanQuery.replace(bathroomMatch[0], '').trim();
   }
   
   // Extract features
-  if (/(مفروش|مؤثث|furnished)/.test(cleanQuery)) {
+  if (/(مفروش|مؤثث|furnished)/i.test(cleanQuery)) {
     filters.furnished = true;
-    cleanQuery = cleanQuery.replace(/(مفروش|مؤثث|furnished)/g, '').trim();
+    cleanQuery = cleanQuery.replace(/(مفروش|مؤثث|furnished)/gi, '').trim();
   }
   
-  if (/(حيوانات|pets?|pet.friendly)/.test(cleanQuery)) {
+  if (/(حيوانات|pets?|pet.friendly)/i.test(cleanQuery)) {
     filters.petFriendly = true;
-    cleanQuery = cleanQuery.replace(/(حيوانات|pets?|pet.friendly)/g, '').trim();
+    cleanQuery = cleanQuery.replace(/(حيوانات|pets?|pet.friendly)/gi, '').trim();
   }
   
-  if (/(موقف|parking|garage)/.test(cleanQuery)) {
+  if (/(موقف|parking|garage)/i.test(cleanQuery)) {
     filters.parking = true;
-    cleanQuery = cleanQuery.replace(/(موقف|parking|garage)/g, '').trim();
+    cleanQuery = cleanQuery.replace(/(موقف|parking|garage)/gi, '').trim();
   }
   
   return { cleanQuery: cleanQuery.trim(), filters };
@@ -501,7 +548,7 @@ export async function searchProperties(
       await prisma.property.updateMany({
         where: {
           id: {
-            in: properties.map(p => p.id)
+            in: properties.map((p: { id: any; }) => p.id)
           }
         },
         data: {
