@@ -12,6 +12,7 @@ const app = express();
 app.use(cors(config.cors));
 
 // Setup middleware
+
 setupMiddleware(app);
 
 // Setup routes
