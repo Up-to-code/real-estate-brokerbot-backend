@@ -58,8 +58,15 @@ async function generateResponse(
         });
         return pdf;
       }
+
     }
+
+    // if (response.name === "remember_time") {
+    //   if (response.details.time) {
     
+  }
+  if (response.type === "reminder") {
+    console.log("handleReminderEvent", response);
   }
 
   return "No response found";

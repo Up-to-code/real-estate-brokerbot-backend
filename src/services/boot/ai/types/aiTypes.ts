@@ -35,7 +35,8 @@ export interface EventDetails {
   preferredTime?: string;
   notes?: string;
   jobType?: string;
-  // Legacy fields for backward compatibility
+  
+  // Legacy fields
   otherData?: string;
   propertyType?: string;
   city?: string;
@@ -45,10 +46,11 @@ export interface EventDetails {
 export type ProcessedResult =
   | { type: 'answer'; text: string }
   | { type: 'search'; query: SearchQuery }
-  | { type: 'event'; name: string; details: EventDetails };
+  | { type: 'event'; name: string; details: EventDetails }
+  | { type: 'reminder'; name: string; details: EventDetails };
 
 export interface OpenAIResponse {
-  type: 'answer' | 'search' | 'event';
+  type: 'answer' | 'search' | 'event' | 'reminder';
   content: string;
   query?: SearchQuery;
   eventName?: string;
@@ -68,7 +70,6 @@ export interface ResponseParser {
   parseResponse(response: string): ProcessedResult;
 }
 
-// Event types enumeration
 export enum EventType {
   GENERATE_PROPERTY_PDF = 'generate_property_pdf',
   SCHEDULE_CALLBACK = 'schedule_callback',
@@ -77,7 +78,6 @@ export enum EventType {
   SAVE_FAVORITE = 'save_favorite'
 }
 
-// Property types enumeration
 export enum PropertyType {
   VILLA = 'فيلا',
   APARTMENT = 'شقة',
@@ -91,14 +91,12 @@ export enum PropertyType {
   TRADITIONAL_HOUSE = 'بيت شعبي'
 }
 
-// Purpose types enumeration
 export enum PropertyPurpose {
   SALE = 'بيع',
   RENT = 'إيجار',
   INVESTMENT = 'استثمار'
 }
 
-// Price range enumeration
 export enum PriceRange {
   ECONOMIC = 'اقتصادي',
   MEDIUM = 'متوسط',
@@ -106,7 +104,6 @@ export enum PriceRange {
   PREMIUM = 'راقي جداً'
 }
 
-// Jeddah districts enumeration
 export enum JeddahDistricts {
   RAWDAH = 'الروضة',
   HAMRA = 'الحمراء',
@@ -149,47 +146,38 @@ export enum JeddahDistricts {
   TAYBAT = 'الطيبات'
 }
 
-// Request types for events
 export type RequestType = 'pdf' | 'callback' | 'appointment' | 'inquiry';
 
-// Job titles with gender support
 export interface JobTitle {
   male: 'وسيط عقاري';
   female: 'وسيطة عقارية';
 }
 
-// Utility type for gender detection
 export type Gender = 'male' | 'female' | 'unknown';
 
-// Helper interface for name analysis
 export interface NameAnalysis {
   name: string;
   gender: Gender;
   jobTitle: string;
 }
 
-// Error handling interface
 export interface AIError {
   type: 'parsing' | 'validation' | 'service';
   message: string;
   originalResponse?: string;
 }
 
-// Response validation interface
 export interface ResponseValidation {
   isValid: boolean;
   errors: string[];
   warnings: string[];
 }
 
-// Enhanced response parser with validation
 export interface EnhancedResponseParser extends ResponseParser {
   validateResponse(response: string): ResponseValidation;
   analyzeNameGender(name: string): NameAnalysis;
-  parseResponse(response: string): ProcessedResult;
 }
 
-// Configuration interface for AI service
 export interface AIServiceConfig {
   apiKey: string;
   model: string;
@@ -199,10 +187,9 @@ export interface AIServiceConfig {
   defaultJobTitles: JobTitle;
 }
 
-// Legacy support - keeping old interface name for backward compatibility
+// Legacy support
 export interface GeneratePropertyPdfEventDetails extends EventDetails {}
 
-// Export utility functions type
 export interface AIUtils {
   createSystemPrompt(phoneNumber?: string, name?: string, historySummary?: string): string;
   createUserPrompt(message: string): string;
