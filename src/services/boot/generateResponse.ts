@@ -24,7 +24,7 @@ async function generateResponse(
     message,
     undefined,
     phoneNumber,
-    name,
+    name
     // historySummary
   );
 
@@ -54,16 +54,14 @@ async function generateResponse(
         const pdf = await generatePropertyPdf({
           type: "event",
           name: response.details.name,
-          details: response.details
+          details: response.details,
         });
         return pdf;
       }
-
     }
 
     // if (response.name === "remember_time") {
     //   if (response.details.time) {
-    
   }
   if (response.type === "reminder") {
     console.log("handleReminderEvent", response);
