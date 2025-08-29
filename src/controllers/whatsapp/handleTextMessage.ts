@@ -15,6 +15,7 @@ export async function handleTextMessage(
   if (result.messageId) {
     await markAsRead(DEFAULT_CONFIG, result.messageId);
   }
+  // Process the message
   const response = await processWhatsAppTextMessage(result);
   console.log("🎯 Response from processor:", response);
   if (typeof response === "string") {

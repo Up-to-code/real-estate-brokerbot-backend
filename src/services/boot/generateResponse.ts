@@ -5,9 +5,9 @@ import {
 } from "./ai/utils/historyUtils";
 import { processRealEstateMessage } from "./ai";
 import { handleSearch } from "./ai/utils/propertySearch";
-import { handleGeneratePropertyPdfEvent } from "./ai/utils/eventHandlers";
-import { getSimilarityScore } from "./ai/utils/similarityUtils";
+
 import { prisma } from "../../lib/prisma";
+import generatePropertyPdf from "./pdf/generatePRopertyPdf";
 
 async function generateResponse(
   message: string,
@@ -24,8 +24,8 @@ async function generateResponse(
     message,
     undefined,
     phoneNumber,
-    name,
-    historySummary
+    name
+    // historySummary
   );
 
   logLLMResponse(response);
@@ -50,13 +50,21 @@ async function generateResponse(
   if (response.type === "event") {
     if (response.name === "generate_property_pdf") {
       console.log("handleGeneratePropertyPdfEvent", response);
-      return `
-        ${response.details.propertyId}
-      
-       
-      `
+      if (response.details.name && response.details.propertyId) {
+        const pdf = await generatePropertyPdf({
+          type: "event",
+          name: response.details.name,
+          details: response.details,
+        });
+        return pdf;
+      }
     }
-    return "حدث غير معروف";
+
+    // if (response.name === "remember_time") {
+    //   if (response.details.time) {
+  }
+  if (response.type === "reminder") {
+    console.log("handleReminderEvent", response);
   }
 
   return "No response found";

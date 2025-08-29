@@ -1,8 +1,67 @@
 import { WhatsAppConfig, WhatsAppResponse, SendOptions } from './types';
 import { makeApiRequest } from './httpClient';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Daily message limit
+const DAILY_MESSAGE_LIMIT = 1000;
 
 /**
- * Sends a simple text message
+ * Get or create today's message statistics
+ */
+async function getTodayStats(): Promise<{ id: string; count: number }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of day
+
+  let stat = await prisma.dailyMessageStat.findUnique({
+    where: { date: today }
+  });
+
+  if (!stat) {
+    stat = await prisma.dailyMessageStat.create({
+      data: {
+        date: today,
+        count: 0
+      }
+    });
+  }
+
+  return { id: stat.id, count: stat.count };
+}
+
+/**
+ * Check if daily message limit has been reached
+ */
+async function checkDailyLimit(): Promise<{ canSend: boolean; remaining: number }> {
+  const stats = await getTodayStats();
+  const remaining = DAILY_MESSAGE_LIMIT - stats.count;
+  
+  return {
+    canSend: remaining > 0,
+    remaining: Math.max(0, remaining)
+  };
+}
+
+/**
+ * Increment daily message count
+ */
+async function incrementMessageCount(): Promise<void> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  await prisma.dailyMessageStat.upsert({
+    where: { date: today },
+    update: { count: { increment: 1 } },
+    create: {
+      date: today,
+      count: 1
+    }
+  });
+}
+
+/**
+ * Sends a simple text message with daily limit check
  */
 export async function sendText(
   config: WhatsAppConfig,
@@ -10,6 +69,13 @@ export async function sendText(
   message: string,
   options: SendOptions = {}
 ): Promise<WhatsAppResponse> {
+  // Check daily limit before sending
+  const limitCheck = await checkDailyLimit();
+  
+  if (!limitCheck.canSend) {
+    throw new Error(`Daily message limit of ${DAILY_MESSAGE_LIMIT} reached. Try again tomorrow.`);
+  }
+
   const payload: any = {
     messaging_product: 'whatsapp',
     to,
@@ -25,49 +91,70 @@ export async function sendText(
     payload.context = { message_id: options.replyToMessageId };
   }
 
-  return makeApiRequest(config, 'messages', payload);
+  try {
+    const response = await makeApiRequest(config, 'messages', payload);
+    
+    // Only increment count if message was sent successfully
+    if (response.messages && response.messages.length > 0) {
+      await incrementMessageCount();
+    }
+    
+    return response;
+  } catch (error) {
+    // Don't increment count on failed sends
+    throw error;
+  }
 }
 
 /**
- * Sends text with natural typing effect
- * Splits message into sentences and sends with delays
+ * Get current daily message statistics
  */
-export async function sendTextWithTypingEffect(
-  config: WhatsAppConfig,
-  to: string,
-  message: string,
-  options: SendOptions & { typingSpeed?: number } = {}
-): Promise<WhatsAppResponse[]> {
-  const typingSpeed = options.typingSpeed || 40; // Words per minute
-  const responses: WhatsAppResponse[] = [];
-  
-  // Split message into sentences
-  const sentences = message
-    .split(/[.!?]+/)
-    .filter(s => s.trim())
-    .map(s => s.trim() + '.');
+export async function getDailyMessageStats(): Promise<{
+  sent: number;
+  remaining: number;
+  limit: number;
+  resetTime: Date;
+}> {
+  const stats = await getTodayStats();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
 
-  for (let i = 0; i < sentences.length; i++) {
-    const sentence = sentences[i];
-    const words = sentence.split(' ').length;
-    const delay = (words / typingSpeed) * 60000; // Convert WPM to milliseconds
-    
-    // Wait before sending (simulate typing)
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    // Send sentence
-    const response = await sendText(config, to, sentence, {
-      replyToMessageId: i === 0 ? options.replyToMessageId : undefined,
-      previewUrl: options.previewUrl
-    });
-     console.log("response from sendText ", response);
-    responses.push(response);
-    
-    // Pause between sentences
-    if (i < sentences.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 800));
+  return {
+    sent: stats.count,
+    remaining: Math.max(0, DAILY_MESSAGE_LIMIT - stats.count),
+    limit: DAILY_MESSAGE_LIMIT,
+    resetTime: tomorrow
+  };
+}
+
+/**
+ * Reset daily message count (for testing or manual reset)
+ */
+export async function resetDailyMessageCount(): Promise<void> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  await prisma.dailyMessageStat.upsert({
+    where: { date: today },
+    update: { count: 0 },
+    create: {
+      date: today,
+      count: 0
     }
-  }
+  });
+}
 
-  return responses;
-} 
+// Cleanup old records (run this periodically)
+export async function cleanupOldMessageStats(daysToKeep: number = 30): Promise<void> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+  await prisma.dailyMessageStat.deleteMany({
+    where: {
+      date: {
+        lt: cutoffDate
+      }
+    }
+  });
+}

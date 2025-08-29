@@ -9,6 +9,7 @@ export async function processRealEstateMessage(
   name?: string,
   historySummary?: string
 ): Promise<ProcessedResult> {
+  console.log(historySummary ? `historySummary: ${historySummary}` : 'no historySummary');
   // Input validation
   if (!message?.trim()) {
     throw new Error('Message cannot be empty');

@@ -1,8 +1,6 @@
 import { PrismaClient, Property, PropertyType, PropertyStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma';
 
- 
-// Types for search functionality
 export interface SearchResult {
   properties: Property[];
   totalCount: number;
@@ -42,149 +40,44 @@ interface SearchOptions {
   sortOrder?: 'asc' | 'desc';
 }
 
-interface PropertySimilarityResult {
-  property: Property;
-  similarity: number;
+// Helper function to check if a value is valid (not null or undefined)
+function isValidValue(value: any): boolean {
+  return value !== null && value !== undefined;
 }
 
-// Helper function to normalize text for better matching (Arabic & English)
+// Simplified text normalization
 function normalizeText(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    // Remove Arabic diacritics
-    .replace(/[\u064B-\u0652]/g, '')
-    // Remove extra whitespace
-    .replace(/\s+/g, ' ')
-    // Remove common punctuation
-    .replace(/[.,!?;:()\-]/g, ' ')
+    .replace(/[\u064B-\u0652]/g, '') // Remove Arabic diacritics
+    .replace(/[.,!?;:()\-]/g, ' ')  // Replace punctuation with spaces
+    .replace(/\s+/g, ' ')           // Collapse multiple spaces
     .trim();
 }
 
-// Extract meaningful tokens from text
+// Extract tokens for similarity calculations
 function extractTokens(text: string): string[] {
   const normalized = normalizeText(text);
   return normalized.split(/\s+/).filter(token => token.length > 1);
 }
 
-// Add this helper near the top (after extractTokens):
-function tokenOverlapScore(query: string, target: string): number {
-  const queryTokens = extractTokens(query);
-  const targetTokens = extractTokens(target);
-  const intersection = queryTokens.filter(token => targetTokens.includes(token));
-  return intersection.length / Math.max(queryTokens.length, 1);
+// Simple string similarity using Levenshtein distance
+function calculateStringSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0;
+  
+  const normalized1 = normalizeText(str1);
+  const normalized2 = normalizeText(str2);
+  
+  if (normalized1 === normalized2) return 1;
+  
+  const distance = calculateLevenshteinDistance(normalized1, normalized2);
+  const maxLength = Math.max(normalized1.length, normalized2.length);
+  
+  return maxLength === 0 ? 1 : 1 - distance / maxLength;
 }
 
-// Extract searchable content from property
-function extractPropertyContent(property: Property): string {
-  const content = [
-    property.title,
-    property.description,
-    property.location,
-    property.address,
-    property.city,
-    property.country,
-    property.type.toLowerCase(),
-    property.status.toLowerCase(),
-    ...property.features,
-    ...property.amenities,
-    property.utilities || '',
-    property.contactInfo || ''
-  ];
-
-  // Add descriptive terms based on property attributes
-  const descriptiveTerms: string[] = [];
-  
-  if (property.bedrooms) {
-    descriptiveTerms.push(`${property.bedrooms} غرف نوم`, `${property.bedrooms} bedroom`, `${property.bedrooms}br`);
-  }
-  
-  if (property.bathrooms) {
-    descriptiveTerms.push(`${property.bathrooms} حمام`, `${property.bathrooms} bathroom`, `${property.bathrooms}ba`);
-  }
-  
-  if (property.furnished) {
-    descriptiveTerms.push('مفروش', 'furnished', 'مؤثث');
-  }
-  
-  if (property.petFriendly) {
-    descriptiveTerms.push('يسمح بالحيوانات', 'pet friendly', 'pets allowed');
-  }
-  
-  if (property.parking && property.parking > 0) {
-    descriptiveTerms.push('موقف سيارات', 'parking', 'garage');
-  }
-
-  if (property.yearBuilt) {
-    descriptiveTerms.push(`built ${property.yearBuilt}`, `بناء ${property.yearBuilt}`);
-  }
-
-  // Add property type translations
-  const typeTranslations: Record<PropertyType, string[]> = {
-    APARTMENT: ['شقة', 'apartment', 'flat', 'شقق'],
-    VILLA: ['فيلا', 'villa', 'house', 'فلل'],
-    TOWNHOUSE: ['تاون هاوس', 'townhouse', 'duplex', 'دوبلكس'],
-    PENTHOUSE: ['بنتهاوس', 'penthouse', 'روف', 'أعلى دور'],
-    STUDIO: ['استوديو', 'studio', 'غرفة واحدة'],
-    OFFICE: ['مكتب', 'office', 'مكاتب'],
-    SHOP: ['محل', 'shop', 'store', 'متجر'],
-    WAREHOUSE: ['مستودع', 'warehouse', 'مخزن'],
-    LAND: ['أرض', 'land', 'plot', 'قطعة أرض'],
-    BUILDING: ['مبنى', 'building', 'عمارة']
-  };
-
-  if (typeTranslations[property.type]) {
-    descriptiveTerms.push(...typeTranslations[property.type]);
-  }
-
-  return [...content, ...descriptiveTerms].join(' ');
-}
-
-// Calculate Jaccard similarity (token overlap)
-function calculateJaccardSimilarity(tokens1: string[], tokens2: string[]): number {
-  const set1 = new Set(tokens1);
-  const set2 = new Set(tokens2);
-  
-  const intersection = new Set([...set1].filter(token => set2.has(token)));
-  const union = new Set([...set1, ...set2]);
-  
-  return union.size === 0 ? 0 : intersection.size / union.size;
-}
-
-// Calculate cosine similarity using term frequency
-function calculateCosineSimilarity(tokens1: string[], tokens2: string[]): number {
-  const tf1 = createTermFrequencyMap(tokens1);
-  const tf2 = createTermFrequencyMap(tokens2);
-  
-  const allTerms = new Set([...Object.keys(tf1), ...Object.keys(tf2)]);
-  
-  if (allTerms.size === 0) return 0;
-  
-  const vector1: number[] = [];
-  const vector2: number[] = [];
-  
-  allTerms.forEach(term => {
-    vector1.push(tf1[term] || 0);
-    vector2.push(tf2[term] || 0);
-  });
-  
-  const dotProduct = vector1.reduce((sum, val, i) => sum + val * vector2[i], 0);
-  const magnitude1 = Math.sqrt(vector1.reduce((sum, val) => sum + val * val, 0));
-  const magnitude2 = Math.sqrt(vector2.reduce((sum, val) => sum + val * val, 0));
-  
-  return magnitude1 === 0 || magnitude2 === 0 ? 0 : dotProduct / (magnitude1 * magnitude2);
-}
-
-// Create term frequency map
-function createTermFrequencyMap(tokens: string[]): Record<string, number> {
-  const tfMap: Record<string, number> = {};
-  tokens.forEach(token => {
-    tfMap[token] = (tfMap[token] || 0) + 1;
-  });
-  return tfMap;
-}
-
-// Calculate Levenshtein distance
+// Levenshtein distance calculation
 function calculateLevenshteinDistance(str1: string, str2: string): number {
   const matrix: number[][] = [];
   
@@ -213,180 +106,142 @@ function calculateLevenshteinDistance(str1: string, str2: string): number {
   return matrix[str2.length][str1.length];
 }
 
-// Convert Levenshtein distance to similarity percentage
-function levenshteinToSimilarity(str1: string, str2: string): number {
-  const maxLength = Math.max(str1.length, str2.length);
-  if (maxLength === 0) return 1;
-  
-  const distance = calculateLevenshteinDistance(str1, str2);
-  return (maxLength - distance) / maxLength;
-}
-
-// Helper: string similarity (simple ratio, can be replaced with better algo)
-function stringSimilarity(a: string, b: string): number {
-  if (!a || !b) return 0;
-  a = a.toLowerCase();
-  b = b.toLowerCase();
-  if (a === b) return 1;
-  // Use Levenshtein distance for similarity
-  const dist = calculateLevenshteinDistance(a, b);
-  const maxLen = Math.max(a.length, b.length);
-  return maxLen === 0 ? 1 : 1 - dist / maxLen;
-}
-
-// Helper: Map user/AI-friendly type string to Prisma PropertyType enum
+// Map user input to PropertyType enum
 function mapToPropertyType(input: string): PropertyType | undefined {
   if (!input) return undefined;
-  const normalized = input.trim().toLowerCase();
-  switch (normalized) {
-    case "فيلا":
-    case "villa":
-    case "house":
-    case "فلل":
-      return "VILLA";
-    case "شقة":
-    case "apartment":
-    case "flat":
-    case "شقق":
-      return "APARTMENT";
-    case "تاون هاوس":
-    case "تاونهاوس":
-    case "townhouse":
-    case "duplex":
-    case "دوبلكس":
-      return "TOWNHOUSE";
-    case "بنتهاوس":
-    case "penthouse":
-    case "روف":
-    case "أعلى دور":
-      return "PENTHOUSE";
-    case "استوديو":
-    case "studio":
-    case "غرفة واحدة":
-      return "STUDIO";
-    case "مكتب":
-    case "office":
-    case "مكاتب":
-      return "OFFICE";
-    case "محل":
-    case "shop":
-    case "store":
-    case "متجر":
-      return "SHOP";
-    case "مستودع":
-    case "warehouse":
-    case "مخزن":
-      return "WAREHOUSE";
-    case "أرض":
-    case "land":
-    case "plot":
-    case "قطعة أرض":
-    case "قطعة":
-      return "LAND";
-    case "مبنى":
-    case "building":
-    case "عمارة":
-      return "BUILDING";
-    default:
-      return undefined;
-  }
+  
+  const normalized = normalizeText(input);
+  const typeMap: Record<string, PropertyType> = {
+    "فيلا": "VILLA",
+    "villa": "VILLA",
+    "house": "VILLA",
+    "فلل": "VILLA",
+    "شقة": "APARTMENT",
+    "apartment": "APARTMENT",
+    "flat": "APARTMENT",
+    "شقق": "APARTMENT",
+    "تاون هاوس": "TOWNHOUSE",
+    "تاونهاوس": "TOWNHOUSE",
+    "townhouse": "TOWNHOUSE",
+    "duplex": "TOWNHOUSE",
+    "دوبلكس": "TOWNHOUSE",
+    "بنتهاوس": "PENTHOUSE",
+    "penthouse": "PENTHOUSE",
+    "روف": "PENTHOUSE",
+    "أعلى دور": "PENTHOUSE",
+    "استوديو": "STUDIO",
+    "studio": "STUDIO",
+    "غرفة واحدة": "STUDIO",
+    "مكتب": "OFFICE",
+    "office": "OFFICE",
+    "مكاتب": "OFFICE",
+    "محل": "SHOP",
+    "shop": "SHOP",
+    "store": "SHOP",
+    "متجر": "SHOP",
+    "مستودع": "WAREHOUSE",
+    "warehouse": "WAREHOUSE",
+    "مخزن": "WAREHOUSE",
+    "أرض": "LAND",
+    "land": "LAND",
+    "plot": "LAND",
+    "قطعة أرض": "LAND",
+    "قطعة": "LAND",
+    "مبنى": "BUILDING",
+    "building": "BUILDING",
+    "عمارة": "BUILDING"
+  };
+  
+  return typeMap[normalized];
 }
 
-// Build Prisma where clause from filters
-function buildWhereClause(filters: SearchFilters, query?: string): Prisma.PropertyWhereInput {
+// Build Prisma where clause from filters and search query
+function buildWhereClause(filters: SearchFilters, searchQuery?: string): Prisma.PropertyWhereInput {
   const where: Prisma.PropertyWhereInput = {};
 
-  // Basic filters
-  if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-    where.price = {};
-    if (filters.minPrice !== undefined) where.price.gte = filters.minPrice;
-    if (filters.maxPrice !== undefined) where.price.lte = filters.maxPrice;
+  // Price filters - only add if values are defined and valid
+  const priceConditions: any = {};
+  if (isValidValue(filters.minPrice)) {
+    priceConditions.gte = filters.minPrice;
+  }
+  if (isValidValue(filters.maxPrice)) {
+    priceConditions.lte = filters.maxPrice;
+  }
+  if (Object.keys(priceConditions).length > 0) {
+    where.price = priceConditions;
   }
 
+  // Basic property filters
   if (filters.type) where.type = filters.type;
   if (filters.status) where.status = filters.status;
   if (filters.city) where.city = { contains: filters.city, mode: 'insensitive' };
   if (filters.country) where.country = { contains: filters.country, mode: 'insensitive' };
 
-  // Room filters
-  if (filters.minBedrooms !== undefined || filters.maxBedrooms !== undefined) {
-    where.bedrooms = {};
-    if (filters.minBedrooms !== undefined) where.bedrooms.gte = filters.minBedrooms;
-    if (filters.maxBedrooms !== undefined) where.bedrooms.lte = filters.maxBedrooms;
+  // Room filters - only add if values are defined and valid
+  const bedroomConditions: any = {};
+  if (isValidValue(filters.minBedrooms)) {
+    bedroomConditions.gte = filters.minBedrooms;
+  }
+  if (isValidValue(filters.maxBedrooms)) {
+    bedroomConditions.lte = filters.maxBedrooms;
+  }
+  if (Object.keys(bedroomConditions).length > 0) {
+    where.bedrooms = bedroomConditions;
   }
 
-  if (filters.minBathrooms !== undefined || filters.maxBathrooms !== undefined) {
-    where.bathrooms = {};
-    if (filters.minBathrooms !== undefined) where.bathrooms.gte = filters.minBathrooms;
-    if (filters.maxBathrooms !== undefined) where.bathrooms.lte = filters.maxBathrooms;
+  const bathroomConditions: any = {};
+  if (isValidValue(filters.minBathrooms)) {
+    bathroomConditions.gte = filters.minBathrooms;
+  }
+  if (isValidValue(filters.maxBathrooms)) {
+    bathroomConditions.lte = filters.maxBathrooms;
+  }
+  if (Object.keys(bathroomConditions).length > 0) {
+    where.bathrooms = bathroomConditions;
   }
 
-  // Area filters
-  if (filters.minArea !== undefined || filters.maxArea !== undefined) {
-    where.area = {};
-    if (filters.minArea !== undefined) where.area.gte = filters.minArea;
-    if (filters.maxArea !== undefined) where.area.lte = filters.maxArea;
+  // Area filters - only add if values are defined and valid
+  const areaConditions: any = {};
+  if (isValidValue(filters.minArea)) {
+    areaConditions.gte = filters.minArea;
+  }
+  if (isValidValue(filters.maxArea)) {
+    areaConditions.lte = filters.maxArea;
+  }
+  if (Object.keys(areaConditions).length > 0) {
+    where.area = areaConditions;
   }
 
   // Parking filters
-  if (filters.minParking !== undefined) {
+  if (isValidValue(filters.minParking)) {
     where.parking = { gte: filters.minParking };
-  }
-  if (filters.parking !== undefined) {
+  } else if (filters.parking !== undefined) {
     where.parking = filters.parking ? { gt: 0 } : { lte: 0 };
   }
 
-  // Boolean filters
+  // Boolean filters - only add if explicitly set
   if (filters.furnished !== undefined) where.furnished = filters.furnished;
   if (filters.petFriendly !== undefined) where.petFriendly = filters.petFriendly;
   if (filters.isActive !== undefined) where.isActive = filters.isActive;
   if (filters.isFeatured !== undefined) where.isFeatured = filters.isFeatured;
 
-  // Agent filter
+  // Other filters
   if (filters.agentId) where.agentId = filters.agentId;
-
-  // Year built filter
-  if (filters.yearBuilt) where.yearBuilt = filters.yearBuilt;
+  if (isValidValue(filters.yearBuilt)) {
+    where.yearBuilt = filters.yearBuilt;
+  }
 
   // Text search across multiple fields
-  if (query && query.trim()) {
-    const searchTerms = query.trim().split(/\s+/);
+  if (searchQuery && searchQuery.trim()) {
+    const searchTerms = searchQuery.trim().split(/\s+/);
     
     where.OR = [
-      {
-        title: {
-          contains: query,
-          mode: 'insensitive'
-        }
-      },
-      {
-        description: {
-          contains: query,
-          mode: 'insensitive'
-        }
-      },
-      {
-        location: {
-          contains: query,
-          mode: 'insensitive'
-        }
-      },
-      {
-        address: {
-          contains: query,
-          mode: 'insensitive'
-        }
-      },
-      {
-        features: {
-          hasSome: searchTerms
-        }
-      },
-      {
-        amenities: {
-          hasSome: searchTerms
-        }
-      }
+      { title: { contains: searchQuery, mode: 'insensitive' } },
+      { description: { contains: searchQuery, mode: 'insensitive' } },
+      { location: { contains: searchQuery, mode: 'insensitive' } },
+      { address: { contains: searchQuery, mode: 'insensitive' } },
+      { features: { hasSome: searchTerms } },
+      { amenities: { hasSome: searchTerms } }
     ];
   }
 
@@ -428,50 +283,214 @@ function buildOrderByClause(options: SearchOptions): Prisma.PropertyOrderByWithR
   return orderBy;
 }
 
-// Calculate comprehensive similarity score for a property
-function calculatePropertySimilarity(query: string, property: Property): number {
-  const queryTokens = extractTokens(query);
-  const propertyContent = extractPropertyContent(property);
-  const propertyTokens = extractTokens(propertyContent);
-  
-  // Multiple similarity metrics
-  const jaccardScore = calculateJaccardSimilarity(queryTokens, propertyTokens);
-  const cosineScore = calculateCosineSimilarity(queryTokens, propertyTokens);
-  
-  // String similarity for exact matches
-  const titleSimilarity = levenshteinToSimilarity(normalizeText(query), normalizeText(property.title));
-  const descriptionSimilarity = levenshteinToSimilarity(normalizeText(query), normalizeText(property.description));
-  const locationSimilarity = levenshteinToSimilarity(normalizeText(query), normalizeText(`${property.location} ${property.city}`));
-  
-  // Weighted combination of similarities
-  let combinedScore = (
-    jaccardScore * 0.25 +           // Token overlap
-    cosineScore * 0.25 +            // Semantic similarity
-    titleSimilarity * 0.25 +        // Title match
-    descriptionSimilarity * 0.15 +  // Description match
-    locationSimilarity * 0.10       // Location match
-  );
-  
-  // Boost score for featured properties
-  if (property.isFeatured) {
-    combinedScore *= 1.05;
+// Parse search query and extract filters
+function parseSearchQuery(query: any): { cleanQuery: string; filters: SearchFilters } {
+  const filters: SearchFilters = {};
+  let cleanQuery = '';
+
+  // Handle different query formats
+  if (typeof query === 'string') {
+    cleanQuery = query;
+  } else if (typeof query === 'object' && query !== null) {
+    // Extract filters from query object - only include valid values
+    const fieldMap: (keyof SearchFilters)[] = [
+      'city', 'type', 'minPrice', 'maxPrice', 'minBedrooms', 'maxBedrooms',
+      'minBathrooms', 'maxBathrooms', 'minArea', 'maxArea', 'furnished',
+      'petFriendly', 'parking', 'yearBuilt', 'country'
+    ];
+
+    for (const key of fieldMap) {
+      const value = query[key];
+      
+      if (key === 'type' && value !== undefined && value !== null) {
+        const mappedType = mapToPropertyType(value);
+        if (mappedType) {
+          filters.type = mappedType;
+        }
+      } else if (key !== 'type' && isValidValue(value)) {
+        // Only assign valid values (not null or undefined)
+        (filters as any)[key] = value;
+      }
+    }
+
+    // Extract text search terms
+    const textFields = ['title', 'description', 'location', 'address'];
+    const textParts: string[] = [];
+    
+    for (const field of textFields) {
+      if (query[field] && typeof query[field] === 'string') {
+        textParts.push(query[field]);
+      }
+    }
+    
+    cleanQuery = textParts.join(' ');
+    
+    // Handle district field separately - map to city if no city is provided
+    if (query.district && typeof query.district === 'string' && !filters.city) {
+      filters.city = query.district;
+    }
   }
-  
-  // Slight boost for active properties
-  if (property.isActive) {
-    combinedScore *= 1.02;
+
+  // If we have a string query, parse it for natural language
+  if (cleanQuery && typeof cleanQuery === 'string') {
+    const parsed = parseNaturalLanguageQuery(cleanQuery);
+    return {
+      cleanQuery: parsed.cleanQuery,
+      filters: { ...filters, ...parsed.filters }
+    };
   }
-  
-  return Math.min(combinedScore, 1.0); // Cap at 1.0
+
+  return { cleanQuery: cleanQuery.trim(), filters };
 }
 
-// Main search function with Prisma integration
+// Enhanced natural language parsing for Arabic locations
+export function parseNaturalLanguageQuery(query: string): { cleanQuery: string; filters: SearchFilters } {
+  const filters: SearchFilters = {};
+  let cleanQuery = normalizeText(query);
+  
+  // Extract property type first
+  const typeMatches: [RegExp, PropertyType][] = [
+    [/(شقة|شقق|apartment|flat)/i, PropertyType.APARTMENT],
+    [/(فيلا|فلل|villa)/i, PropertyType.VILLA],
+    [/(تاون|townhouse)/i, PropertyType.TOWNHOUSE],
+    [/(بنتهاوس|penthouse)/i, PropertyType.PENTHOUSE],
+    [/(استوديو|studio)/i, PropertyType.STUDIO],
+    [/(مكتب|مكاتب|office)/i, PropertyType.OFFICE],
+    [/(محل|متجر|shop|store)/i, PropertyType.SHOP],
+    [/(مستودع|مخزن|warehouse)/i, PropertyType.WAREHOUSE],
+    [/(أرض|قطعة|land|plot)/i, PropertyType.LAND],
+    [/(مبنى|عمارة|building)/i, PropertyType.BUILDING]
+  ];
+  
+  for (const [regex, type] of typeMatches) {
+    if (regex.test(cleanQuery)) {
+      filters.type = type;
+      cleanQuery = cleanQuery.replace(regex, '').trim();
+      break;
+    }
+  }
+
+  // Enhanced location matching - prioritize specific districts
+  const locationMatches: [RegExp, string][] = [
+    // Abhar districts (most specific first)
+    [/(أبحر الشمالية|abhar al shamaliyah)/i, 'أبحر الشمالية'],
+    [/(أبحر الجنوبية|abhar al janubiyah)/i, 'أبحر الجنوبية'],
+    [/(أبحره|أبحر|abhar)/i, 'أبحر الشمالية'], // Default to North Abhar
+    
+    // Other Jeddah districts
+    [/(الروضة|al rawdah)/i, 'الروضة'],
+    [/(الحمراء|al hamra)/i, 'الحمراء'],
+    [/(المرجان|al marjan)/i, 'المرجان'],
+    [/(الشاطئ|al shati)/i, 'الشاطئ'],
+    [/(الصفا|al safa)/i, 'الصفا'],
+    [/(المحمدية|al muhammadiyah)/i, 'المحمدية'],
+    [/(الرحاب|al rahab)/i, 'الرحاب'],
+    [/(السامر|al samer)/i, 'السامر'],
+    [/(الفيصلية|al faisaliyah)/i, 'الفيصلية'],
+    [/(الصالحية|al salhiyah)/i, 'الصالحية'],
+    [/(الخالدية|al khalidiyah)/i, 'الخالدية'],
+    [/(الوزيرية|al waziriyah)/i, 'الوزيرية'],
+    [/(الزهراء|al zahra)/i, 'الزهراء'],
+    [/(المروة|al marwah)/i, 'المروة'],
+    [/(الأندلس|al andalus)/i, 'الأندلس'],
+    [/(الأجاويد|al ajawid)/i, 'الأجاويد'],
+    [/(الجامعة|al jamiah)/i, 'الجامعة'],
+    [/(الصحيفة|al sahifah)/i, 'الصحيفة'],
+    [/(الربوة|al rabwah)/i, 'الربوة'],
+    [/(الشرفية|al sharafiyah)/i, 'الشرفية'],
+    [/(الكندرة|al kandarah)/i, 'الكندرة'],
+    [/(الشعبة|al shuabah)/i, 'الشعبة'],
+    [/(الجوهرة|al jawharah)/i, 'الجوهرة'],
+    [/(السلامة|al salamah)/i, 'السلامة'],
+    [/(الروابي|al rawabi)/i, 'الروابي'],
+    [/(الفروسية|al furusiyah)/i, 'الفروسية'],
+    [/(الواحة|al wahah)/i, 'الواحة'],
+    [/(الخمرة|al khamrah)/i, 'الخمرة'],
+    [/(الحرازات|al harazat)/i, 'الحرازات'],
+    [/(الصواري|al sawari)/i, 'الصواري'],
+    [/(الشاطبي|al shatbi)/i, 'الشاطبي'],
+    [/(الطيبات|al tayibat)/i, 'الطيبات'],
+    [/(الشرقية|al sharqiyah)/i, 'الشرقية'],
+    [/(الغربية|al gharbiyah)/i, 'الغربية'],
+    [/(الشمالية|al shamaliyah)/i, 'الشمالية'],
+    [/(الجنوبية|al janubiyah)/i, 'الجنوبية'],
+    
+    // Major cities
+    [/(جدة|jeddah)/i, 'جدة'],
+    [/(الرياض|riyadh)/i, 'الرياض'],
+    [/(دبي|dubai)/i, 'دبي'],
+    [/(أبو ظبي|abu dhabi)/i, 'أبو ظبي'],
+    [/(الشارقة|sharjah)/i, 'الشارقة']
+  ];
+  
+  for (const [regex, location] of locationMatches) {
+    if (regex.test(cleanQuery)) {
+      filters.city = location;
+      cleanQuery = cleanQuery.replace(regex, '').trim();
+      break;
+    }
+  }
+  
+  // Extract price range
+  const priceMatch = cleanQuery.match(/(\d+(?:,\d+)?)\s*[-–]\s*(\d+(?:,\d+)?)/);
+  if (priceMatch) {
+    const minPrice = parseFloat(priceMatch[1].replace(',', ''));
+    const maxPrice = parseFloat(priceMatch[2].replace(',', ''));
+    if (!isNaN(minPrice)) filters.minPrice = minPrice;
+    if (!isNaN(maxPrice)) filters.maxPrice = maxPrice;
+    cleanQuery = cleanQuery.replace(priceMatch[0], '').trim();
+  }
+  
+  // Extract bedroom count
+  const bedroomMatch = cleanQuery.match(/(\d+)\s*(غرف|غرفة|bedroom|br|bed)/i);
+  if (bedroomMatch) {
+    const bedrooms = parseInt(bedroomMatch[1]);
+    if (!isNaN(bedrooms)) {
+      filters.minBedrooms = bedrooms;
+      filters.maxBedrooms = bedrooms;
+    }
+    cleanQuery = cleanQuery.replace(bedroomMatch[0], '').trim();
+  }
+  
+  // Extract bathroom count
+  const bathroomMatch = cleanQuery.match(/(\d+)\s*(حمام|bathroom|bath|ba)/i);
+  if (bathroomMatch) {
+    const bathrooms = parseInt(bathroomMatch[1]);
+    if (!isNaN(bathrooms)) {
+      filters.minBathrooms = bathrooms;
+      filters.maxBathrooms = bathrooms;
+    }
+    cleanQuery = cleanQuery.replace(bathroomMatch[0], '').trim();
+  }
+  
+  // Extract features
+  if (/(مفروش|مؤثث|furnished)/i.test(cleanQuery)) {
+    filters.furnished = true;
+    cleanQuery = cleanQuery.replace(/(مفروش|مؤثث|furnished)/gi, '').trim();
+  }
+  
+  if (/(حيوانات|pets?|pet.friendly)/i.test(cleanQuery)) {
+    filters.petFriendly = true;
+    cleanQuery = cleanQuery.replace(/(حيوانات|pets?|pet.friendly)/gi, '').trim();
+  }
+  
+  if (/(موقف|parking|garage)/i.test(cleanQuery)) {
+    filters.parking = true;
+    cleanQuery = cleanQuery.replace(/(موقف|parking|garage)/gi, '').trim();
+  }
+  
+  return { cleanQuery: cleanQuery.trim(), filters };
+}
+
+// Main search function - simplified and unified
 export async function searchProperties(
-  query: any, // expects a JSON object from AI
+  query: any,
   filters: SearchFilters = {},
   options: SearchOptions = {}
 ): Promise<SearchResult> {
   try {
+    console.log('🔍 Search input:', { query, filters, options });
+    
     // Set default options
     const searchOptions = {
       limit: 10,
@@ -488,35 +507,24 @@ export async function searchProperties(
       filters.isActive = true;
     }
 
-    // Use all fields from query object for filtering
-    const fieldMap = [
-      'city', 'type', 'minPrice', 'maxPrice', 'minBedrooms', 'maxBedrooms',
-      'minBathrooms', 'maxBathrooms', 'minArea', 'maxArea', 'furnished',
-      'petFriendly', 'parking', 'yearBuilt', 'address', 'country'
-    ];
-    for (const key of fieldMap) {
-      if (key === 'type' && query.type !== undefined) {
-        const mappedType = mapToPropertyType(query.type);
-        if (mappedType) {
-          (filters as any).type = mappedType;
-        } else {
-          delete (filters as any).type;
-        }
-      } else if (key !== 'type' && query[key] !== undefined) {
-        (filters as any)[key] = query[key];
-      }
-    }
-    // Only use similarity if title or description is present
-    const title = query.title || '';
-    const description = query.description || '';
+    // Parse query and merge with filters
+    const { cleanQuery, filters: queryFilters } = parseSearchQuery(query);
+    const mergedFilters = { ...filters, ...queryFilters };
+    
+    console.log('🔍 Parsed query:', { cleanQuery, queryFilters, mergedFilters });
 
     // Build Prisma query
-    const where = buildWhereClause(filters);
+    const where = buildWhereClause(mergedFilters, cleanQuery);
     const orderBy = buildOrderByClause(searchOptions);
+    
+    console.log('🔍 Prisma where clause:', JSON.stringify(where, null, 2));
 
     // Get total count
     const totalCount = await prisma.property.count({ where });
+    console.log('🔍 Total count:', totalCount);
+    
     if (totalCount === 0) {
+      console.log('🔍 No properties found');
       return {
         properties: [],
         totalCount: 0,
@@ -526,113 +534,21 @@ export async function searchProperties(
     }
 
     // Get properties with pagination
-    let properties: Property[] = [];
-    let allProperties: Property[] = [];
-    if (title && title.trim()) {
-      // Prioritize title similarity
-      allProperties = await prisma.property.findMany({
-        where,
-        take: Math.min(totalCount, 100),
-        skip: searchOptions.offset
-      });
-      const scoredProperties = allProperties.map(property => ({
-        property,
-        similarity: stringSimilarity(title, property.title)
-      }));
-      properties = scoredProperties
-        .filter(item => item.similarity >= 0.85)
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, searchOptions.limit)
-        .map(item => item.property);
-      // If no properties found by title, try description similarity
-      if (properties.length === 0 && description && description.trim()) {
-        const descScored = allProperties.map(property => ({
-          property,
-          similarity: stringSimilarity(description, property.description)
-        }));
-        properties = descScored
-          .filter(item => item.similarity >= 0.85)
-          .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, searchOptions.limit)
-          .map(item => item.property);
-      }
-      // If still none, fallback to top 3 most similar properties by title (improved)
-      if (properties.length === 0 && allProperties.length > 0) {
-        const scoredPropertiesWithTokens = scoredProperties.map(item => ({
-          ...item,
-          tokenScore: tokenOverlapScore(title, item.property.title)
-        }));
-        const bestMatches = scoredPropertiesWithTokens
-          .sort((a, b) => (b.tokenScore + b.similarity) - (a.tokenScore + a.similarity))
-          .slice(0, 3)
-          .filter(item => (item.tokenScore + item.similarity) > 0);
-        if (bestMatches.length > 0) {
-          properties = bestMatches.map(item => item.property);
-        }
-      }
-      // If still none, fallback to standard filter-based search
-      if (properties.length === 0) {
-        properties = await prisma.property.findMany({
-          where,
-          orderBy,
-          take: searchOptions.limit,
-          skip: searchOptions.offset
-        });
-      }
-    } else if (description && description.trim()) {
-      // If only description is present
-      allProperties = await prisma.property.findMany({
-        where,
-        take: Math.min(totalCount, 100),
-        skip: searchOptions.offset
-      });
-      const descScored = allProperties.map(property => ({
-        property,
-        similarity: stringSimilarity(description, property.description)
-      }));
-      properties = descScored
-        .filter(item => item.similarity >= 0.85)
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, searchOptions.limit)
-        .map(item => item.property);
-      // If still none, fallback to top 3 most similar properties by description (improved)
-      if (properties.length === 0 && allProperties.length > 0) {
-        const descScoredWithTokens = descScored.map(item => ({
-          ...item,
-          tokenScore: tokenOverlapScore(description, item.property.description)
-        }));
-        const bestMatches = descScoredWithTokens
-          .sort((a, b) => (b.tokenScore + b.similarity) - (a.tokenScore + a.similarity))
-          .slice(0, 3)
-          .filter(item => (item.tokenScore + item.similarity) > 0);
-        if (bestMatches.length > 0) {
-          properties = bestMatches.map(item => item.property);
-        }
-      }
-      if (properties.length === 0) {
-        properties = await prisma.property.findMany({
-          where,
-          orderBy,
-          take: searchOptions.limit,
-          skip: searchOptions.offset
-        });
-      }
-    } else {
-      // Use standard filter-based search
-      properties = await prisma.property.findMany({
-        where,
-        orderBy,
-        take: searchOptions.limit,
-        skip: searchOptions.offset
-      });
-    }
+    const properties = await prisma.property.findMany({
+      where,
+      orderBy,
+      take: searchOptions.limit,
+      skip: searchOptions.offset
+    });
+
+    console.log('🔍 Found properties:', properties.length);
 
     // Increment view count for returned properties
     if (properties.length > 0) {
       await prisma.property.updateMany({
         where: {
           id: {
-            in: properties.map(p => p.id)
+            in: properties.map((p: { id: any; }) => p.id)
           }
         },
         data: {
@@ -647,6 +563,8 @@ export async function searchProperties(
     const resultMessage = properties.length === 1 
       ? `تم العثور على عقار واحد مطابق / Found 1 matching property`
       : `تم العثور على ${properties.length} عقار من أصل ${totalCount} / Found ${properties.length} of ${totalCount} properties`;
+
+    console.log('🔍 Search result:', { properties: properties.length, totalCount, message: resultMessage });
 
     return {
       properties,
@@ -715,193 +633,22 @@ export async function getSimilarProperties(
         { viewCount: 'desc' },
         { createdAt: 'desc' }
       ],
-      take: limit * 2 // Get more to calculate similarity
+      take: limit
     });
 
-    // Calculate similarity scores if we have a meaningful comparison
-    if (similarProperties.length > 0) {
-      const searchQuery = `${baseProperty.type} ${baseProperty.city} ${baseProperty.bedrooms} bedroom`;
-      const scoredProperties = similarProperties.map(property => ({
-        property,
-        similarity: calculatePropertySimilarity(searchQuery, property)
-      }));
-
-      return scoredProperties
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, limit)
-        .map(item => item.property);
-    }
-
-    return similarProperties.slice(0, limit);
+    return similarProperties;
   } catch (error) {
     console.error('Error getting similar properties:', error);
     return [];
   }
 }
 
-// Advanced search with multiple filters and faceted results
-export async function advancedSearch(
-  filters: SearchFilters,
-  options: SearchOptions = {}
-): Promise<{
-  properties: Property[];
-  totalCount: number;
-  facets: {
-    types: { type: PropertyType; count: number }[];
-    cities: { city: string; count: number }[];
-    priceRanges: { min: number; max: number; count: number }[];
-  };
-}> {
-  try {
-    const where = buildWhereClause(filters);
-    
-    // Get properties
-    const properties = await prisma.property.findMany({
-      where,
-      orderBy: buildOrderByClause(options),
-      take: options.limit || 10,
-      skip: options.offset || 0
-    });
-
-    const totalCount = await prisma.property.count({ where });
-
-    // Calculate facets for filtering
-    const typeFacets = await prisma.property.groupBy({
-      by: ['type'],
-      where,
-      _count: { type: true }
-    });
-
-    const cityFacets = await prisma.property.groupBy({
-      by: ['city'],
-      where,
-      _count: { city: true },
-      orderBy: { _count: { city: 'desc' } },
-      take: 10
-    });
-
-    // Price range facets
-    const priceRanges = [
-      { min: 0, max: 100000 },
-      { min: 100000, max: 300000 },
-      { min: 300000, max: 500000 },
-      { min: 500000, max: 1000000 },
-      { min: 1000000, max: Infinity }
-    ];
-
-    const priceRangeFacets = await Promise.all(
-      priceRanges.map(async (range) => {
-        const count = await prisma.property.count({
-          where: {
-            ...where,
-            price: {
-              gte: range.min,
-              lt: range.max === Infinity ? undefined : range.max
-            }
-          }
-        });
-        return { ...range, count };
-      })
-    );
-
-    return {
-      properties,
-      totalCount,
-      facets: {
-        types: typeFacets.map(f => ({ type: f.type, count: f._count.type })),
-        cities: cityFacets.map(f => ({ city: f.city, count: f._count.city })),
-        priceRanges: priceRangeFacets.filter(f => f.count > 0)
-      }
-    };
-  } catch (error) {
-    console.error('Advanced search error:', error);
-    throw error;
-  }
-}
-
-// Utility function to parse search query and extract filters
-export function parseSearchQuery(query: string): { cleanQuery: string; filters: SearchFilters } {
-  const filters: SearchFilters = {};
-  let cleanQuery = query.toLowerCase();
-  
-  // Extract price range
-  const priceMatch = cleanQuery.match(/(\d+(?:,\d+)?)\s*[-–]\s*(\d+(?:,\d+)?)/);
-  if (priceMatch) {
-    filters.minPrice = parseFloat(priceMatch[1].replace(',', ''));
-    filters.maxPrice = parseFloat(priceMatch[2].replace(',', ''));
-    cleanQuery = cleanQuery.replace(priceMatch[0], '').trim();
-  }
-  
-  // Extract bedroom count
-  const bedroomMatch = cleanQuery.match(/(\d+)\s*(غرف|غرفة|bedroom|br|bed)/);
-  if (bedroomMatch) {
-    const bedrooms = parseInt(bedroomMatch[1]);
-    filters.minBedrooms = bedrooms;
-    filters.maxBedrooms = bedrooms;
-    cleanQuery = cleanQuery.replace(bedroomMatch[0], '').trim();
-  }
-  
-  // Extract bathroom count
-  const bathroomMatch = cleanQuery.match(/(\d+)\s*(حمام|bathroom|bath|ba)/);
-  if (bathroomMatch) {
-    const bathrooms = parseInt(bathroomMatch[1]);
-    filters.minBathrooms = bathrooms;
-    filters.maxBathrooms = bathrooms;
-    cleanQuery = cleanQuery.replace(bathroomMatch[0], '').trim();
-  }
-  
-  // Extract property type
-  const typeMatches: [RegExp, PropertyType][] = [
-    [/(شقة|شقق|apartment|flat)/, PropertyType.APARTMENT],
-    [/(فيلا|فلل|villa)/, PropertyType.VILLA],
-    [/(تاون|townhouse)/, PropertyType.TOWNHOUSE],
-    [/(بنتهاوس|penthouse)/, PropertyType.PENTHOUSE],
-    [/(استوديو|studio)/, PropertyType.STUDIO],
-    [/(مكتب|مكاتب|office)/, PropertyType.OFFICE],
-    [/(محل|متجر|shop|store)/, PropertyType.SHOP],
-    [/(مستودع|مخزن|warehouse)/, PropertyType.WAREHOUSE],
-    [/(أرض|قطعة|land|plot)/, PropertyType.LAND],
-    [/(مبنى|عمارة|building)/, PropertyType.BUILDING]
-  ];
-  
-  for (const [regex, type] of typeMatches) {
-    if (regex.test(cleanQuery)) {
-      filters.type = type;
-      cleanQuery = cleanQuery.replace(regex, '').trim();
-      break;
-    }
-  }
-  
-  // Extract furnished status
-  if (/(مفروش|مؤثث|furnished)/.test(cleanQuery)) {
-    filters.furnished = true;
-    cleanQuery = cleanQuery.replace(/(مفروش|مؤثث|furnished)/g, '').trim();
-  }
-  
-  // Extract pet-friendly status
-  if (/(حيوانات|pets?|pet.friendly)/.test(cleanQuery)) {
-    filters.petFriendly = true;
-    cleanQuery = cleanQuery.replace(/(حيوانات|pets?|pet.friendly)/g, '').trim();
-  }
-  
-  // Extract parking requirement
-  if (/(موقف|parking|garage)/.test(cleanQuery)) {
-    filters.parking = true;
-    cleanQuery = cleanQuery.replace(/(موقف|parking|garage)/g, '').trim();
-  }
-  
-  return { cleanQuery: cleanQuery.trim(), filters };
-}
-
-// Get property recommendations based on user preferences
+// Get property recommendations
 export async function getPropertyRecommendations(
   userId: string,
   limit: number = 10
 ): Promise<Property[]> {
   try {
-    // This is a simplified recommendation system
-    // In a real application, you would analyze user behavior, preferences, etc.
-    
     return await prisma.property.findMany({
       where: {
         isActive: true

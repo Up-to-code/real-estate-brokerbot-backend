@@ -12,7 +12,7 @@ export function createOpenAIService(apiKey: string): OpenAIService {
         const userPrompt = createUserPrompt(message);
 
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4',
+          model: 'gpt-3.5-turbo',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

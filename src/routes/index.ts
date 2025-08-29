@@ -6,6 +6,7 @@ import clientsRouter from "./Clients/index";
 import qaRouter from "./QA/qa";
 import templatesRouter from "./Templates/index";
 import campaignsRouter from "./campaigns/index";
+import whatsappRouter from "./whatsapp";
 const router = Router();
 
 //  main route
@@ -20,5 +21,6 @@ router.use("/clients", clientsRouter);
 router.use("/qa", qaRouter);
 router.use("/templates", templatesRouter);
 router.use("/campaigns", campaignsRouter);
+router.use("/whatsapp", whatsappRouter);
 
 export default router;
