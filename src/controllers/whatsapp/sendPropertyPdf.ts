@@ -6,20 +6,35 @@ export const sendPropertyPdf = async (req: Request, res: Response) => {
   try {
     const { propertyId, phone, marketerName } = req.body;
     if (!propertyId || !phone || !marketerName) {
-      return res.status(400).json({ success: false, message: "Missing required fields: propertyId, phone, marketerName" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: propertyId, phone, marketerName"
+      });
     }
     const result = await generatePropertyPdf({
       type: "event",
       name: marketerName,
       details: { propertyId, phone }
     });
+
     if (result.success) {
-      return res.status(200).json({ success: true, message: result.message, messageId: result.messageId, mediaId: result.mediaId });
+      // Only send properties that are guaranteed to be present according to type
+      return res.status(200).json({
+        success: true,
+        message: result.message
+      });
     } else {
-      return res.status(500).json({ success: false, message: result.message, error: result.error });
+      // Return only message and a generic error field for consistency
+      return res.status(500).json({
+        success: false,
+        message: result.message
+      });
     }
   } catch (error) {
     console.error("Error in sendPropertyPdf:", error);
-    return res.status(500).json({ success: false, message: "Internal server error", error });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
   }
-}; 
+};

@@ -25,9 +25,9 @@ function sleep(ms: number): Promise<void> {
 export async function uploadToWhatsApp(pdfBuffer: Buffer): Promise<string> {
   console.log('📤 Uploading to WhatsApp...');
   console.log(`📊 File size: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)}MB`);
-  
-  let lastError: Error | null = null;
-  
+
+  let lastErrorMessage: string | undefined = undefined;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       console.log(`🔄 Upload attempt ${attempt}/${MAX_RETRIES}`);
@@ -38,7 +38,7 @@ export async function uploadToWhatsApp(pdfBuffer: Buffer): Promise<string> {
         filename: `property_${Date.now()}.pdf`,
         contentType: 'application/pdf'
       });
-      
+
       const uploadResponse = await axios.post(
         `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/media`,
         form,
@@ -52,36 +52,44 @@ export async function uploadToWhatsApp(pdfBuffer: Buffer): Promise<string> {
           maxBodyLength: Infinity
         }
       );
-      
+
       const mediaId = uploadResponse.data.id;
       if (!mediaId) {
         throw new Error('No media ID returned from WhatsApp');
       }
-      
+
       console.log('✅ PDF uploaded successfully, media ID:', mediaId);
       return mediaId;
-      
-    } catch (error) {
-      lastError = error as Error;
-      
+
+    } catch (error: any) {
+      let errorMsg: string;
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         const message = error.response?.data?.error?.message || error.message;
-        
+        errorMsg = message;
+        lastErrorMessage = message;
+
         // Don't retry on certain errors
         if (status === 400 || status === 401 || status === 403) {
           throw new Error(`Upload failed (${status}): ${message}`);
         }
-        
+
         console.log(`⚠️ Upload attempt ${attempt} failed (${status}): ${message}`);
-        
+
         if (attempt < MAX_RETRIES) {
           console.log(`⏳ Waiting ${RETRY_DELAY_MS}ms before retry...`);
           await sleep(RETRY_DELAY_MS);
         }
       } else {
-        console.log(`⚠️ Upload attempt ${attempt} failed: ${error.message}`);
-        
+        if (error instanceof Error && error.message) {
+          errorMsg = error.message;
+          lastErrorMessage = error.message;
+        } else {
+          errorMsg = String(error);
+          lastErrorMessage = errorMsg;
+        }
+        console.log(`⚠️ Upload attempt ${attempt} failed: ${errorMsg}`);
+
         if (attempt < MAX_RETRIES) {
           console.log(`⏳ Waiting ${RETRY_DELAY_MS}ms before retry...`);
           await sleep(RETRY_DELAY_MS);
@@ -89,8 +97,8 @@ export async function uploadToWhatsApp(pdfBuffer: Buffer): Promise<string> {
       }
     }
   }
-  
+
   // All retries failed
-  const errorMessage = lastError?.message || 'Unknown upload error';
+  const errorMessage = lastErrorMessage || 'Unknown upload error';
   throw new Error(`Upload failed after ${MAX_RETRIES} attempts: ${errorMessage}`);
-} 
+}

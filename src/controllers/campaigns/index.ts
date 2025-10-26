@@ -2,11 +2,14 @@ import { Request, Response } from "express";
 import { sendWhatsAppTemplateCampaign } from "../../services/boot/services/WhatsAppBusinessAPI";
 import { prisma } from "../../lib/prisma";
 
+/**
+ * Get all campaigns with client count and included templates.
+ */
 export const getAllCampaigns = async (req: Request, res: Response) => {
   try {
     const campaigns = await prisma.campaign.findMany({
       include: {
-        template: true,
+        templates: true, // Corrected relation
         _count: {
           select: {
             clients: true,
@@ -18,12 +21,13 @@ export const getAllCampaigns = async (req: Request, res: Response) => {
       },
     });
 
-    // Transform the response to include clientCount
-    const transformedCampaigns = campaigns.map((campaign) => ({
-      ...campaign,
-      clientCount: campaign._count.clients,
-      _count: undefined, // Remove the _count field
-    }));
+    const transformedCampaigns = campaigns.map((campaign) => {
+      const { _count, ...rest } = campaign as any;
+      return {
+        ...rest,
+        clientCount: _count?.clients ?? 0,
+      };
+    });
 
     res.json({ success: true, data: transformedCampaigns });
   } catch (err) {
@@ -32,13 +36,16 @@ export const getAllCampaigns = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Get a single campaign by ID with client count and included templates.
+ */
 export const getCampaignById = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const campaign = await prisma.campaign.findUnique({
       where: { id },
       include: {
-        template: true,
+        templates: true, // Corrected relation
         _count: {
           select: {
             clients: true,
@@ -52,21 +59,25 @@ export const getCampaignById = async (req: Request, res: Response) => {
         .status(404)
         .json({ success: false, error: "Campaign not found" });
 
-    // Transform the response to include clientCount
+    const { _count, ...rest } = campaign as any;
     const transformedCampaign = {
-      ...campaign,
-      clientCount: campaign._count.clients,
-      _count: undefined, // Remove the _count field
+      ...rest,
+      clientCount: _count?.clients ?? 0,
     };
 
     res.json({ success: true, data: transformedCampaign });
     return;
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, error: "Failed to get campaign" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to get campaign" });
   }
 };
 
+/**
+ * Create a campaign, connecting clients and templates properly.
+ */
 export const createCampaign = async (req: Request, res: Response) => {
   const {
     name,
@@ -85,7 +96,7 @@ export const createCampaign = async (req: Request, res: Response) => {
   }
 
   try {
-    let selectedClients = [];
+    let selectedClients: { id: string }[] = [];
 
     // Handle audience types
     switch (audience) {
@@ -99,7 +110,7 @@ export const createCampaign = async (req: Request, res: Response) => {
         selectedClients = await prisma.client.findMany({
           where: {
             lastActive: {
-              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Active in last 30 days
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
             },
           },
           select: { id: true },
@@ -110,7 +121,7 @@ export const createCampaign = async (req: Request, res: Response) => {
         selectedClients = await prisma.client.findMany({
           where: {
             lastActive: {
-              lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Inactive for more than 30 days
+              lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // More than 30 days inactive
             },
           },
           select: { id: true },
@@ -124,34 +135,39 @@ export const createCampaign = async (req: Request, res: Response) => {
             error: "clientIds must be a non-empty array for custom audience",
           });
         }
-
-        // Validate clients exist (optional but recommended)
         selectedClients = clientIds.map((id: string) => ({ id }));
         break;
 
       default:
         return res.status(400).json({
           success: false,
-          error:
-            "Invalid audience type. Must be 'all', 'active', 'inactive', or 'custom'",
+          error: "Invalid audience type. Must be 'all', 'active', 'inactive', or 'custom'",
         });
     }
 
-    const campaign = await prisma.campaign.create({
-      data: {
-        name,
-        type,
-        status,
-        audience,
-        message,
-        templateId,
-        clients: {
-          connect: selectedClients,
-        },
+    const campaignData: any = {
+      name,
+      type,
+      status,
+      audience,
+      message,
+      clients: {
+        connect: selectedClients,
       },
+    };
+
+    // Campaign-Template M:N relation fix: use templates.connect
+    if (templateId) {
+      campaignData.templates = {
+        connect: [{ id: templateId }],
+      };
+    }
+
+    const campaign = await prisma.campaign.create({
+      data: campaignData,
       include: {
         clients: true,
-        template: true,
+        templates: true,
       },
     });
 
@@ -164,6 +180,9 @@ export const createCampaign = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Update an existing campaign, clients & templates M:N.
+ */
 export const updateCampaign = async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
@@ -193,10 +212,15 @@ export const updateCampaign = async (req: Request, res: Response) => {
     if (status) updateData.status = status;
     if (audience) updateData.audience = audience;
     if (type === "Custom" && message) updateData.message = message;
-    if (type === "Template" && templateId) updateData.templateId = templateId;
-    if (clientIds) {
+    if (clientIds && Array.isArray(clientIds)) {
       updateData.clients = {
         set: clientIds.map((clientId: string) => ({ id: clientId })),
+      };
+    }
+    // Update templates relation (set for single template based on templateId)
+    if (templateId) {
+      updateData.templates = {
+        set: [{ id: templateId }],
       };
     }
 
@@ -204,12 +228,12 @@ export const updateCampaign = async (req: Request, res: Response) => {
       where: { id },
       data: updateData,
       include: {
-        template: true,
+        templates: true,
         clients: true,
       },
     });
 
-     console.log("status", status);
+    // Optionally trigger sending if status is now "active"
     if (status === "active") {
       await sendWhatsAppTemplateCampaign(id);
     }
@@ -222,10 +246,15 @@ export const updateCampaign = async (req: Request, res: Response) => {
     return;
   } catch (error) {
     console.error("Error updating campaign:", error);
-    return res.status(500).json({ success: false, error: "Failed to update campaign" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to update campaign" });
   }
 };
 
+/**
+ * Delete a campaign by ID.
+ */
 export const deleteCampaign = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -239,6 +268,9 @@ export const deleteCampaign = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Send a campaign by ID.
+ */
 export const sendCampaign = async (req: Request, res: Response) => {
   const { id } = req.params;
 

@@ -1,6 +1,7 @@
 import { WhatsAppConfig, WhatsAppResponse, SendOptions } from './types';
 import { makeApiRequest } from './httpClient';
-import { sendTextWithTypingEffect } from './textMessaging';
+// Fix: Remove import of nonexistent member. 'sendTextWithTypingEffect' is not exported by './textMessaging'.
+// import { sendTextWithTypingEffect } from './textMessaging';
 import { extractFilenameFromUrl, getFileExtension } from './utils';
 
 /**
@@ -28,33 +29,6 @@ export async function sendImage(
   }
 
   return makeApiRequest(config, 'messages', payload);
-}
-
-/**
- * Sends an image with text caption and typing effect
- * Combines image sending with natural text effect
- */
-export async function sendImageWithText(
-  config: WhatsAppConfig,
-  to: string,
-  imageUrl: string,
-  text: string,
-  options: SendOptions & { typingSpeed?: number } = {}
-): Promise<{ image: WhatsAppResponse; text: WhatsAppResponse[] }> {
-  // Send image first
-  const imageResponse = await sendImage(config, to, imageUrl, undefined, options);
-  
-  // Wait a moment, then send text with typing effect
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  const textResponses = await sendTextWithTypingEffect(config, to, text, {
-    typingSpeed: options.typingSpeed
-  });
-
-  return {
-    image: imageResponse,
-    text: textResponses
-  };
 }
 
 /**

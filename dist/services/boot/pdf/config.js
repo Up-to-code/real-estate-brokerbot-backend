@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.RETRY_DELAY_MS = exports.MAX_RETRIES = exports.UPLOAD_TIMEOUT_MS = exports.TIMEOUT_MS = exports.MAX_PDF_SIZE = exports.PDF_API_URL = exports.WHATSAPP_TOKEN = exports.PHONE_NUMBER_ID = void 0;
+exports.PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+exports.WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+exports.PDF_API_URL = process.env.PDF_API_URL || "https://pdf-ar-production.up.railway.app/generate-pdf";
+exports.MAX_PDF_SIZE = 100 * 1024 * 1024;
+exports.TIMEOUT_MS = 30000;
+exports.UPLOAD_TIMEOUT_MS = 120000;
+exports.MAX_RETRIES = 3;
+exports.RETRY_DELAY_MS = 2000;
