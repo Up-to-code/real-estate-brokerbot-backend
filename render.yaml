@@ -1,6 +1,4 @@
-# render.yaml — Render Blueprints (runtime schema v3, Nov 2025)
 # Express.js + TypeScript backend
-
 services:
   - type: web
     name: brokerbot-backend
@@ -20,12 +18,10 @@ services:
         fromDatabase:
           name: brokerbot-postgres-db
           property: connectionString
-
 databases:
   - name: brokerbot-postgres-db
     plan: starter
     region: oregon
-
 jobs:
   - name: cleanup-temp-files
     runtime: node
