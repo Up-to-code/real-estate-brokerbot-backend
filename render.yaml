@@ -20,12 +20,6 @@ services:
           name: brokerbot-postgres-db
           property: connectionString
 
-databases:
-  - name: brokerbot-postgres-db
-    plan: starter
-    region: oregon
-
-jobs:
   - type: cron
     name: cleanup-temp-files
     runtime: node
@@ -34,4 +28,9 @@ jobs:
     repo: https://github.com/Up-to-code/real-estate-brokerbot-backend
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: npm run cleanup 
+    startCommand: npm run cleanup
+
+databases:
+  - name: brokerbot-postgres-db
+    plan: starter
+    region: oregon
