@@ -1,0 +1,37 @@
+# render.yaml — Render Blueprints (runtime schema v3, Nov 2025)
+# Express.js + TypeScript backend
+
+services:
+  - type: web
+    name: brokerbot-backend
+    runtime: node
+    plan: starter
+    region: oregon
+    repo: https://github.com/Up-to-code/real-estate-brokerbot-backend
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: brokerbot-postgres-db
+          property: connectionString
+
+databases:
+  - name: brokerbot-postgres-db
+    plan: starter
+    region: oregon
+
+jobs:
+  - name: cleanup-temp-files
+    runtime: node
+    plan: free
+    schedule: "0 3 * * *"   # every day at 03:00 UTC
+    repo: https://github.com/Up-to-code/real-estate-brokerbot-backend
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run cleanup
