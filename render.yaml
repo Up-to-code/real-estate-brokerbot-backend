@@ -23,7 +23,6 @@ services:
   - type: cron
     name: cleanup-temp-files
     runtime: node
-    plan: free
     schedule: "0 3 * * *"
     repo: https://github.com/Up-to-code/real-estate-brokerbot-backend
     branch: main
