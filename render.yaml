@@ -34,4 +34,4 @@ jobs:
     repo: https://github.com/Up-to-code/real-estate-brokerbot-backend
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: npm run cleanup
+    startCommand: npm run cleanup 
