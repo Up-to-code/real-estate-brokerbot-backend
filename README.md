@@ -62,4 +62,8 @@ src/
 ├── routes/          # API routes
 ├── services/        # Business logic
 └── types/           # TypeScript type definitions
-``` 
+```
+
+## Project links
+
+[Source](https://github.com/Up-to-code/real-estate-brokerbot-backend) · [Issues](https://github.com/Up-to-code/real-estate-brokerbot-backend/issues) · [Public project directory](https://github.com/qentrah/.github/blob/main/profile/PROJECTS.md)
